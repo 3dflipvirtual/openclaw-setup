@@ -18,9 +18,16 @@ export async function POST() {
 
   const { data: existing } = await supabase
     .from("telegram_links")
-    .select("code, verified")
+    .select("code, verified, webhook_secret")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  if (!existing?.webhook_secret) {
+    return NextResponse.json(
+      { error: "Connect your Telegram bot first (add your bot token)." },
+      { status: 400 }
+    );
+  }
 
   if (existing?.code && !existing.verified) {
     return NextResponse.json({ code: existing.code });
@@ -31,15 +38,15 @@ export async function POST() {
   }
 
   const code = generateCode();
-  const { error } = await supabase.from("telegram_links").upsert(
-    {
-      user_id: user.id,
+  const { error } = await supabase
+    .from("telegram_links")
+    .update({
       code,
       verified: false,
+      chat_id: null,
       updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" }
-  );
+    })
+    .eq("user_id", user.id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

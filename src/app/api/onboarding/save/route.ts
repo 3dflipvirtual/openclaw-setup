@@ -67,14 +67,14 @@ export async function POST(request: Request) {
       await supabase
         .from("agents")
         .update({
-          telegram_bot: "shared",
+          telegram_bot: "own",
           status: "configured",
         })
         .eq("id", agent.id);
     } else {
       await supabase.from("agents").insert({
         user_id: user.id,
-        telegram_bot: "shared",
+        telegram_bot: "own",
         status: "configured",
       });
     }

@@ -40,6 +40,10 @@ export default function OnboardingPage() {
   const [telegramCode, setTelegramCode] = useState<string | null>(null);
   const [telegramLinked, setTelegramLinked] = useState(false);
   const [telegramChecking, setTelegramChecking] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState("");
+  const [telegramConnectLoading, setTelegramConnectLoading] = useState(false);
+  const [telegramConnectError, setTelegramConnectError] = useState<string | null>(null);
+  const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
   const [deployError, setDeployError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -124,10 +128,34 @@ export default function OnboardingPage() {
     setTelegramChecking(false);
     if (response.ok) {
       setTelegramLinked(Boolean(payload?.verified));
-      if (payload?.code) {
-        setTelegramCode(payload.code);
-      }
+      if (payload?.code) setTelegramCode(payload.code);
+      if (payload?.botUsername) setTelegramBotUsername(payload.botUsername);
     }
+  };
+
+  const connectTelegramBot = async () => {
+    const token = telegramBotToken.trim();
+    if (!token) {
+      setTelegramConnectError("Enter your bot token from @BotFather.");
+      return;
+    }
+    setTelegramConnectLoading(true);
+    setTelegramConnectError(null);
+    const response = await fetch("/api/telegram/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+    const payload = await response.json();
+    setTelegramConnectLoading(false);
+    if (!response.ok) {
+      setTelegramConnectError(payload?.error ?? "Failed to connect bot. Try again.");
+      return;
+    }
+    setTelegramCode(payload?.code ?? null);
+    setTelegramBotUsername(payload?.botUsername ?? null);
+    setTelegramBotToken("");
+    setTelegramLinked(false);
   };
 
   const saveStep = async () => {
@@ -298,18 +326,59 @@ export default function OnboardingPage() {
               <div>
                 <h2 className="text-xl font-semibold">Connect Telegram</h2>
                 <p className="text-sm text-muted">
-                  We use one shared bot for everyone. Just send your code and
-                  you are linked.
+                  Use your own bot so there are no shared limits. Create one in
+                  Telegram with @BotFather, then paste the token here.
                 </p>
               </div>
               <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted">
                 <ShieldAlert size={14} />
-                Safe, rate-limited
+                Your token is encrypted and never shared
               </div>
             </div>
+            <div className="rounded-2xl border border-border/60 bg-background px-4 py-4 text-sm">
+              <label className="flex flex-col gap-2 font-semibold">
+                <span className="flex items-center gap-2">
+                  <Bot size={16} className="text-lobster" />
+                  Telegram Bot Token
+                </span>
+                <input
+                  type="password"
+                  placeholder="123456789:ABCdefGHI..."
+                  value={telegramBotToken}
+                  onChange={(e) => {
+                    setTelegramBotToken(e.target.value);
+                    setTelegramConnectError(null);
+                  }}
+                  className="rounded-xl border border-border/60 bg-background px-3 py-2 text-sm font-normal placeholder:text-muted"
+                />
+              </label>
+              <p className="mt-2 text-xs text-muted">
+                Get this from @BotFather in Telegram (Bot Settings → API Token).
+              </p>
+              <Button
+                size="sm"
+                className="mt-3"
+                onClick={connectTelegramBot}
+                disabled={telegramConnectLoading}
+              >
+                {telegramConnectLoading ? (
+                  <>
+                    <Loader2 className="animate-spin" size={14} />
+                    Connecting...
+                  </>
+                ) : (
+                  "Connect my bot"
+                )}
+              </Button>
+              {telegramConnectError ? (
+                <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {telegramConnectError}
+                </p>
+              ) : null}
+            </div>
             <div className="rounded-2xl border border-dashed border-border/80 bg-background/80 p-4 text-sm text-muted">
-              Open Telegram and send the code below to our shared bot. It links
-              your account securely.
+              After connecting, send the code below to your bot in Telegram to
+              link this account.
             </div>
             <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-background px-4 py-4 text-sm">
               <div className="flex items-center justify-between gap-3">
@@ -323,14 +392,16 @@ export default function OnboardingPage() {
                   onClick={loadTelegramCode}
                   disabled={telegramChecking}
                 >
-                  {telegramCode ? "Refresh" : "Generate"}
+                  {telegramCode ? "Refresh" : "Get code"}
                 </Button>
               </div>
               <div className="rounded-xl border border-border/60 bg-background px-3 py-2 text-center text-lg font-semibold">
-                {telegramCode ?? "Tap generate"}
+                {telegramCode ?? "Connect your bot first"}
               </div>
               <p className="text-xs text-muted">
-                Send this code to @YourLobsterBot in Telegram.
+                {telegramBotUsername
+                  ? `Send this code to ${telegramBotUsername} in Telegram.`
+                  : "After connecting your bot, a code will appear here."}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -450,7 +521,7 @@ export default function OnboardingPage() {
                 </div>
                 <div className="flex items-center gap-2 font-semibold">
                   <CheckCircle2 size={16} />
-                  Ready! Text @YourLobsterBot on Telegram.
+                  Ready! Text your bot on Telegram to talk to OpenClaw.
                 </div>
                 <div className="mt-2 flex flex-wrap gap-3">
                   <Button

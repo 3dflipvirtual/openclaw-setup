@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { decryptSecret } from "@/lib/crypto";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-
-const BOT_TOKEN = process.env.PLATFORM_TELEGRAM_BOT_TOKEN ?? "";
-const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET ?? "";
 
 type TelegramUpdate = {
   message?: {
@@ -20,9 +18,13 @@ const STRICT_LIMITS = {
   perIp: { limit: 120, windowSeconds: 60 },
 };
 
-async function sendMessage(chatId: number, text: string) {
-  if (!BOT_TOKEN) return;
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+async function sendMessage(
+  chatId: number,
+  text: string,
+  botToken: string
+) {
+  if (!botToken) return;
+  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chatId, text }),
@@ -66,10 +68,28 @@ async function checkRateLimit(
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
-  const token = url.searchParams.get("token");
+  const secret = url.searchParams.get("secret");
 
-  if (!WEBHOOK_SECRET || token !== WEBHOOK_SECRET) {
+  if (!secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = createAdminSupabaseClient();
+  const { data: link } = await supabase
+    .from("telegram_links")
+    .select("user_id, code, verified, chat_id, bot_token_encrypted")
+    .eq("webhook_secret", secret)
+    .maybeSingle();
+
+  if (!link?.user_id || !link.bot_token_encrypted) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let botToken: string;
+  try {
+    botToken = decryptSecret(link.bot_token_encrypted);
+  } catch {
+    return NextResponse.json({ error: "Invalid link config" }, { status: 500 });
   }
 
   const payload = (await request.json()) as TelegramUpdate;
@@ -82,7 +102,6 @@ export async function POST(request: Request) {
   const chatId = message.chat.id;
   const text = message.text?.trim() ?? "";
   const ip = request.headers.get("x-forwarded-for") ?? "unknown";
-  const supabase = createAdminSupabaseClient();
 
   const chatAllowed = await checkRateLimit(
     supabase,
@@ -100,18 +119,13 @@ export async function POST(request: Request) {
   if (!chatAllowed || !ipAllowed) {
     await sendMessage(
       chatId,
-      "Rate limit hit. Please wait a moment and try again."
+      "Rate limit hit. Please wait a moment and try again.",
+      botToken
     );
     return NextResponse.json({ ok: true });
   }
 
-  const { data: linkByCode } = await supabase
-    .from("telegram_links")
-    .select("user_id, code, verified")
-    .eq("code", text)
-    .maybeSingle();
-
-  if (linkByCode?.user_id) {
+  if (text === link.code) {
     await supabase
       .from("telegram_links")
       .update({
@@ -119,33 +133,29 @@ export async function POST(request: Request) {
         verified: true,
         updated_at: new Date().toISOString(),
       })
-      .eq("user_id", linkByCode.user_id);
+      .eq("user_id", link.user_id);
 
     await sendMessage(
       chatId,
-      "✅ Connected! You can now chat with OpenClaw from Telegram."
+      "✅ Connected! You can now chat with OpenClaw from Telegram.",
+      botToken
     );
 
     return NextResponse.json({ ok: true });
   }
 
-  const { data: linkByChat } = await supabase
-    .from("telegram_links")
-    .select("user_id, verified")
-    .eq("chat_id", chatId)
-    .maybeSingle();
-
-  if (!linkByChat?.user_id || !linkByChat.verified) {
+  if (!link.verified || link.chat_id !== chatId) {
     await sendMessage(
       chatId,
-      "Please link your account first. Open the onboarding page and send the code shown there."
+      "Please link your account first. Open the onboarding page and send the code shown there.",
+      botToken
     );
     return NextResponse.json({ ok: true });
   }
 
   const userAllowed = await checkRateLimit(
     supabase,
-    `user:${linkByChat.user_id}`,
+    `user:${link.user_id}`,
     STRICT_LIMITS.perUser.limit,
     STRICT_LIMITS.perUser.windowSeconds
   );
@@ -153,16 +163,17 @@ export async function POST(request: Request) {
   if (!userAllowed) {
     await sendMessage(
       chatId,
-      "Rate limit hit for your account. Please wait a moment."
+      "Rate limit hit for your account. Please wait a moment.",
+      botToken
     );
     return NextResponse.json({ ok: true });
   }
 
   await supabase.from("activity_logs").insert({
-    user_id: linkByChat.user_id,
+    user_id: link.user_id,
     message: `Telegram: ${text || "[non-text message]"}`,
   });
 
-  await sendMessage(chatId, "Got it! OpenClaw is working on this now.");
+  await sendMessage(chatId, "Got it! OpenClaw is working on this now.", botToken);
   return NextResponse.json({ ok: true });
 }

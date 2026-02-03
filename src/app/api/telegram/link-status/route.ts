@@ -14,7 +14,7 @@ export async function GET() {
 
   const { data } = await supabase
     .from("telegram_links")
-    .select("verified, chat_id, code")
+    .select("verified, chat_id, code, bot_username")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -22,5 +22,7 @@ export async function GET() {
     verified: Boolean(data?.verified),
     chatId: data?.chat_id ?? null,
     code: data?.code ?? null,
+    botUsername: data?.bot_username ? `@${data.bot_username}` : null,
+    hasBot: Boolean(data?.bot_username),
   });
 }

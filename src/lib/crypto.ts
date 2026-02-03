@@ -1,5 +1,10 @@
 import "server-only";
-import { createCipheriv, createHash, randomBytes } from "crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "crypto";
 
 function getKey() {
   const key = process.env.ENCRYPTION_KEY;
@@ -21,6 +26,25 @@ export function encryptSecret(value: string) {
     tag.toString("base64"),
     encrypted.toString("base64"),
   ].join(":");
+}
+
+export function decryptSecret(value: string): string {
+  const parts = value.split(":");
+  const ivB64 = parts[0];
+  const tagB64 = parts[1];
+  const cipherB64 = parts[2];
+  if (!ivB64 || !tagB64 || !cipherB64) {
+    throw new Error("Invalid encrypted payload");
+  }
+  const iv = Buffer.from(ivB64, "base64");
+  const tag = Buffer.from(tagB64, "base64");
+  const encrypted = Buffer.from(cipherB64, "base64");
+  const key = getKey();
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString(
+    "utf8"
+  );
 }
 
 export function getLast4(value: string) {
