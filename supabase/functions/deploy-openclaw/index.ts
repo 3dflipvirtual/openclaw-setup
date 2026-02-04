@@ -192,8 +192,14 @@ Deno.serve(async (req: Request) => {
     (secret) => secret.type === "telegram_bot_token"
   );
 
+  const { data: telegramLink } = await supabase
+    .from("telegram_links")
+    .select("bot_token_encrypted")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
   if (!platformMinimaxKey && !claudeSecret) {
-    return new Response(JSON.stringify({ error: "Missing MiniMax or Telegram secret" }), {
+    return new Response(JSON.stringify({ error: "Missing MiniMax or Claude secret" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
@@ -206,7 +212,9 @@ Deno.serve(async (req: Request) => {
     if (!claudeApiKey && claudeSecret) {
       claudeApiKey = await decryptSecret(claudeSecret.encrypted_value);
     }
-    if (!telegramBotToken && telegramSecret) {
+    if (telegramLink?.bot_token_encrypted) {
+      telegramBotToken = await decryptSecret(telegramLink.bot_token_encrypted);
+    } else if (!telegramBotToken && telegramSecret) {
       telegramBotToken = await decryptSecret(telegramSecret.encrypted_value);
     }
   } catch (error) {
@@ -216,8 +224,15 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  if (!claudeApiKey || !telegramBotToken) {
-    return new Response(JSON.stringify({ error: "Missing platform keys" }), {
+  if (!claudeApiKey) {
+    return new Response(JSON.stringify({ error: "Missing MiniMax API key" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (!telegramBotToken) {
+    return new Response(JSON.stringify({ error: "Connect your Telegram bot in onboarding first, then deploy again." }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });

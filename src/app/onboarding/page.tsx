@@ -44,6 +44,7 @@ export default function OnboardingPage() {
   const [telegramConnectLoading, setTelegramConnectLoading] = useState(false);
   const [telegramConnectError, setTelegramConnectError] = useState<string | null>(null);
   const [telegramBotUsername, setTelegramBotUsername] = useState<string | null>(null);
+  const [telegramDisconnecting, setTelegramDisconnecting] = useState(false);
   const [deployError, setDeployError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -130,6 +131,17 @@ export default function OnboardingPage() {
       setTelegramLinked(Boolean(payload?.verified));
       if (payload?.code) setTelegramCode(payload.code);
       if (payload?.botUsername) setTelegramBotUsername(payload.botUsername);
+    }
+  };
+
+  const disconnectTelegram = async () => {
+    setTelegramDisconnecting(true);
+    const response = await fetch("/api/telegram/disconnect", { method: "POST" });
+    setTelegramDisconnecting(false);
+    if (response.ok) {
+      setTelegramCode(null);
+      setTelegramBotUsername(null);
+      setTelegramLinked(false);
     }
   };
 
@@ -413,6 +425,17 @@ export default function OnboardingPage() {
               >
                 {telegramChecking ? "Checking..." : "I've sent the code"}
               </Button>
+              {(telegramLinked || telegramBotUsername) ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={disconnectTelegram}
+                  disabled={telegramDisconnecting}
+                >
+                  {telegramDisconnecting ? "Disconnecting..." : "Disconnect"}
+                </Button>
+              ) : null}
               {telegramLinked ? (
                 <span className="text-xs font-semibold text-emerald-600">
                   Connected
@@ -488,6 +511,11 @@ export default function OnboardingPage() {
                     : "None yet"}
                 </li>
               </ul>
+              <p className="mt-3 text-xs text-muted">
+                After paying for Workers Paid and R2 on Cloudflare, click Deploy
+                so your worker receives your Telegram bot token and can reply in
+                Telegram.
+              </p>
             </div>
             <Button
               size="lg"
