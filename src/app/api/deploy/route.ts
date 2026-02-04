@@ -52,13 +52,16 @@ export async function POST() {
   const deployAllowed = await checkRateLimit(
     admin,
     `deploy:${user.id}`,
-    2,
+    5,
     60 * 60
   );
 
   if (!deployAllowed) {
     return NextResponse.json(
-      { error: "Too many deploy attempts. Please wait." },
+      {
+        error:
+          "Too many deploy attempts. Please wait about an hour before trying again.",
+      },
       { status: 429 }
     );
   }
@@ -70,6 +73,11 @@ export async function POST() {
   if (!session?.access_token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const { data: refreshed } = await supabase.auth.refreshSession({
+    refresh_token: session.refresh_token,
+  });
+  const accessToken = refreshed?.session?.access_token ?? session.access_token;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -89,7 +97,7 @@ export async function POST() {
     {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     }
   );
