@@ -116,11 +116,12 @@ function getBaseUrl(url: string) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
+  try {
+    if (req.method !== "POST") {
+      return new Response("Method not allowed", { status: 405 });
+    }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   const cloudflareAccountId = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? "";
   const cloudflareToken = Deno.env.get("CLOUDFLARE_API_TOKEN") ?? "";
@@ -254,17 +255,23 @@ Deno.serve(async (req: Request) => {
   try {
     manifest = await loadBundleManifest(manifestUrl);
   } catch (error) {
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    const msg = (error as Error).message;
+    return new Response(
+      JSON.stringify({
+        error: msg.includes("fetch") || msg.includes("manifest")
+          ? `${msg} Check MOLTWORKER_BUNDLE_URL or upload the bundle to Supabase Storage (bucket: moltworker-bundles, path: moltworker/bundle.json).`
+          : msg,
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 
   const baseUrl = getBaseUrl(manifestUrl);
   const mainModule = manifest.main_module ?? "index.js";
+  const modules = Array.isArray(manifest.modules) ? manifest.modules : [];
 
   const moduleResponses = await Promise.all(
-    manifest.modules.map(async (mod) => {
+    modules.map(async (mod) => {
       const response = await fetch(`${baseUrl}/${mod.name}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch module ${mod.name}`);
@@ -285,7 +292,7 @@ Deno.serve(async (req: Request) => {
 
   const metadata: Record<string, unknown> = {
     main_module: mainModule,
-    modules: manifest.modules,
+    modules,
     compatibility_date: manifest.compatibility_date,
     compatibility_flags: manifest.compatibility_flags,
     durable_objects: manifest.durable_objects,
@@ -385,8 +392,15 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  return new Response(JSON.stringify({ ok: true, worker: workerName, gatewayToken }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
+    return new Response(JSON.stringify({ ok: true, worker: workerName, gatewayToken }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 });
