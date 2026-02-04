@@ -175,7 +175,7 @@ export async function POST(request: Request) {
     message: `Telegram: ${text || "[non-text message]"}`,
   });
 
-  // Optionally forward the message to the user's Cloudflare Worker
+  // Forward the message to the user's Cloudflare Worker (each user has a unique worker URL)
   try {
     const { data: deployment } = await supabaseAdmin
       .from("deployments")
@@ -187,10 +187,23 @@ export async function POST(request: Request) {
 
     const workerName =
       (deployment?.config as { worker?: string } | null)?.worker ?? null;
-    const workerSubdomain = process.env.CLOUDFLARE_WORKERS_SUBDOMAIN ?? "";
+    // Subdomain only, e.g. "openclaw-setup" → worker URL: https://openclaw-xxx.openclaw-setup.workers.dev
+    let workerSubdomain =
+      (process.env.CLOUDFLARE_WORKERS_SUBDOMAIN ?? "").trim();
+    if (workerSubdomain.endsWith(".workers.dev")) {
+      workerSubdomain = workerSubdomain.replace(/\.workers\.dev$/i, "");
+    }
 
-    if (workerName && workerSubdomain) {
-      // Fetch gateway token secret for this user
+    if (!workerName || !workerSubdomain) {
+      if (!workerName) {
+        console.warn("[telegram-webhook] No live deployment for user", link.user_id);
+      }
+      if (!workerSubdomain) {
+        console.warn(
+          "[telegram-webhook] CLOUDFLARE_WORKERS_SUBDOMAIN not set (e.g. openclaw-setup)"
+        );
+      }
+    } else {
       const { data: gatewaySecret } = await supabaseAdmin
         .from("secrets")
         .select("encrypted_value")
@@ -198,13 +211,16 @@ export async function POST(request: Request) {
         .eq("type", "gateway_token")
         .maybeSingle();
 
-      if (gatewaySecret?.encrypted_value) {
+      if (!gatewaySecret?.encrypted_value) {
+        console.warn("[telegram-webhook] No gateway_token secret for user", link.user_id);
+      } else {
         const gatewayToken = decryptSecret(gatewaySecret.encrypted_value);
-        const workerUrl = `https://${workerName}.${workerSubdomain}.workers.dev/api/telegram-hook?token=${encodeURIComponent(
+        const workerHost = `${workerName}.${workerSubdomain}.workers.dev`;
+        const workerUrl = `https://${workerHost}/api/telegram-hook?token=${encodeURIComponent(
           gatewayToken
         )}`;
 
-        await fetch(workerUrl, {
+        const forwardRes = await fetch(workerUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -213,6 +229,16 @@ export async function POST(request: Request) {
             text,
           }),
         });
+        if (!forwardRes.ok) {
+          console.error(
+            "[telegram-webhook] Worker forward failed",
+            workerHost,
+            forwardRes.status,
+            await forwardRes.text().catch(() => "")
+          );
+        } else {
+          console.log("[telegram-webhook] Forwarded to worker", workerHost);
+        }
       }
     }
   } catch (error) {

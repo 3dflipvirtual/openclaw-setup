@@ -1,5 +1,11 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Workers and Telegram
+
+- **Worker URL**: Each user gets a worker at `https://<workerName>.<subdomain>.workers.dev` (e.g. `openclaw-cadb8106.openclaw-setup.workers.dev`). Set **`CLOUDFLARE_WORKERS_SUBDOMAIN`** in Vercel to the subdomain only (e.g. `openclaw-setup`), not the full hostname.
+- **Trigger events**: In Cloudflare, "Triggers" may show nothing—the worker is invoked by **HTTP**: the Next.js Telegram webhook forwards messages to your worker’s `/api/telegram-hook` endpoint. No cron or queue is required.
+- **Bundle updates**: All deployed workers use one bundle from Supabase Storage. To ship improvements: run `npm run build` and `node scripts/publish-bundle.mjs` in `vendor/moltworker`, then have users redeploy from the app. You can add CI (e.g. GitHub Actions) to build and publish the bundle on push; connecting each worker to a separate GitHub repo is not required.
+
 ## Getting Started
 
 First, run the development server:
