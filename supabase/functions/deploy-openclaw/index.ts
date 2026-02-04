@@ -156,23 +156,33 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const authHeader = req.headers.get("Authorization") ?? req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(
+      JSON.stringify({ error: "Missing or invalid Authorization header. Please log in again." }),
+      { status: 401, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     global: {
-      headers: {
-        Authorization: req.headers.get("Authorization") ?? "",
-      },
+      headers: { Authorization: authHeader },
     },
   });
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+    error: userError,
+  } = await supabase.auth.getUser(token);
 
-  if (!user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+  if (userError || !user) {
+    return new Response(
+      JSON.stringify({
+        error: userError?.message ?? "Invalid or expired session. Please log in again.",
+      }),
+      { status: 401, headers: { "Content-Type": "application/json" } }
+    );
   }
 
   const { data: secrets, error: secretsError } = await supabase

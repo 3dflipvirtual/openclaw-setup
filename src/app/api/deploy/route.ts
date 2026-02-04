@@ -96,9 +96,11 @@ export async function POST() {
 
   if (!deployResponse.ok) {
     const payload = await deployResponse.json().catch(() => ({}));
+    const message = payload?.error ?? "Deployment failed";
+    const status = deployResponse.status;
     return NextResponse.json(
-      { error: payload?.error ?? "Deployment failed" },
-      { status: 500 }
+      { error: message },
+      { status: status >= 400 && status < 600 ? status : 500 }
     );
   }
 

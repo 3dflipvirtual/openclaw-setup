@@ -103,7 +103,11 @@ export default function OnboardingPage() {
 
     if (!response.ok) {
       setDeploying(false);
-      setDeployError("We hit a snag. Please try again.");
+      const payload = await response.json().catch(() => ({}));
+      setDeployError(payload?.error ?? "We hit a snag. Please try again.");
+      if (response.status === 401) {
+        router.push("/login");
+      }
       return;
     }
 
