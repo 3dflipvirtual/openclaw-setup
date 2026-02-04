@@ -311,10 +311,19 @@ Deno.serve(async (req: Request) => {
 
   const form = new FormData();
   form.append("metadata", JSON.stringify(metadata));
-  form.append(mainModule, new Blob([mainContent], { type: "application/javascript" }), mainModule);
+  form.append(
+    mainModule,
+    new Blob([mainContent], { type: "application/javascript+module" }),
+    mainModule
+  );
 
   for (const { mod, content } of moduleResponses) {
-    const contentType = mod.type === "text" ? "text/plain" : "application/javascript";
+    const contentType =
+      mod.type === "text"
+        ? "text/plain"
+        : mod.type === "esm" || mod.name.endsWith(".js")
+          ? "application/javascript+module"
+          : "application/javascript";
     form.append(mod.name, new Blob([content], { type: contentType }), mod.name);
   }
 
