@@ -74,8 +74,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = createAdminSupabaseClient();
-  const { data: link } = await supabase
+  const supabaseAdmin = createAdminSupabaseClient();
+  const { data: link } = await supabaseAdmin
     .from("telegram_links")
     .select("user_id, code, verified, chat_id, bot_token_encrypted")
     .eq("webhook_secret", secret)
@@ -104,13 +104,13 @@ export async function POST(request: Request) {
   const ip = request.headers.get("x-forwarded-for") ?? "unknown";
 
   const chatAllowed = await checkRateLimit(
-    supabase,
+    supabaseAdmin,
     `chat:${chatId}`,
     STRICT_LIMITS.perChat.limit,
     STRICT_LIMITS.perChat.windowSeconds
   );
   const ipAllowed = await checkRateLimit(
-    supabase,
+    supabaseAdmin,
     `ip:${ip}`,
     STRICT_LIMITS.perIp.limit,
     STRICT_LIMITS.perIp.windowSeconds
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
   }
 
   if (text === link.code) {
-    await supabase
+    await supabaseAdmin
       .from("telegram_links")
       .update({
         chat_id: chatId,
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
   }
 
   const userAllowed = await checkRateLimit(
-    supabase,
+    supabaseAdmin,
     `user:${link.user_id}`,
     STRICT_LIMITS.perUser.limit,
     STRICT_LIMITS.perUser.windowSeconds
@@ -169,11 +169,57 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  await supabase.from("activity_logs").insert({
+  // Log the message in activity logs
+  await supabaseAdmin.from("activity_logs").insert({
     user_id: link.user_id,
     message: `Telegram: ${text || "[non-text message]"}`,
   });
 
+  // Optionally forward the message to the user's Cloudflare Worker
+  try {
+    const { data: deployment } = await supabaseAdmin
+      .from("deployments")
+      .select("config")
+      .eq("user_id", link.user_id)
+      .eq("status", "live")
+      .order("created_at", { ascending: false })
+      .maybeSingle();
+
+    const workerName =
+      (deployment?.config as { worker?: string } | null)?.worker ?? null;
+    const workerSubdomain = process.env.CLOUDFLARE_WORKERS_SUBDOMAIN ?? "";
+
+    if (workerName && workerSubdomain) {
+      // Fetch gateway token secret for this user
+      const { data: gatewaySecret } = await supabaseAdmin
+        .from("secrets")
+        .select("encrypted_value")
+        .eq("user_id", link.user_id)
+        .eq("type", "gateway_token")
+        .maybeSingle();
+
+      if (gatewaySecret?.encrypted_value) {
+        const gatewayToken = decryptSecret(gatewaySecret.encrypted_value);
+        const workerUrl = `https://${workerName}.${workerSubdomain}.workers.dev/api/telegram-hook?token=${encodeURIComponent(
+          gatewayToken
+        )}`;
+
+        await fetch(workerUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: link.user_id,
+            chatId,
+            text,
+          }),
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Failed to forward Telegram message to worker:", error);
+  }
+
+  // Immediate acknowledgement back to Telegram
   await sendMessage(chatId, "Got it! OpenClaw is working on this now.", botToken);
   return NextResponse.json({ ok: true });
 }
