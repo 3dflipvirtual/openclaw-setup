@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
+import { isVpsConfigured } from "@/lib/openclaw-vps";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 /**
  * GET /api/telegram/forward-status
- * Returns why Telegram messages may or may not be forwarded to your worker.
- * Requires auth. Use this to debug "zero requests" on the worker.
+ * Returns whether Telegram messages will be forwarded to the OpenClaw VPS.
+ * Requires auth.
  */
 export async function GET() {
   const supabase = await createServerSupabaseClient();
@@ -18,10 +19,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let workerSubdomain = (process.env.CLOUDFLARE_WORKERS_SUBDOMAIN ?? "").trim();
-  if (workerSubdomain.endsWith(".workers.dev")) {
-    workerSubdomain = workerSubdomain.replace(/\.workers\.dev$/i, "");
-  }
+  const vpsConfigured = isVpsConfigured();
 
   const admin = createAdminSupabaseClient();
   const { data: deployment } = await admin
@@ -32,36 +30,17 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .maybeSingle();
 
-  const workerName = (deployment?.config as { worker?: string } | null)?.worker ?? null;
-
-  const { data: gatewayRow } = await admin
-    .from("secrets")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("type", "gateway_token")
-    .maybeSingle();
-
-  const canForward =
-    Boolean(workerSubdomain) && Boolean(workerName) && Boolean(gatewayRow);
+  const canForward = vpsConfigured && Boolean(deployment);
 
   return NextResponse.json({
     ok: true,
-    subdomainSet: Boolean(workerSubdomain),
-    subdomainPreview: workerSubdomain ? `${workerSubdomain}.workers.dev` : null,
+    vpsConfigured,
     hasDeployment: Boolean(deployment),
-    workerName,
-    hasGatewayToken: Boolean(gatewayRow),
     canForward,
-    workerUrlPreview:
-      workerName && workerSubdomain
-        ? `https://${workerName}.${workerSubdomain}.workers.dev/api/telegram-hook?token=...`
-        : null,
-    hint: !workerSubdomain
-      ? "Set CLOUDFLARE_WORKERS_SUBDOMAIN in Vercel (e.g. openclaw-setup), then redeploy."
-      : !workerName
-        ? "Deploy your worker from the app (Dashboard → Deploy) so a deployment is recorded."
-        : !gatewayRow
-          ? "Gateway token is set during deploy; redeploy once to fix."
-          : "Forward should be active. Send a Telegram message and check Vercel logs for [telegram-webhook].",
+    hint: !vpsConfigured
+      ? "Set OPENCLAW_VPS_URL and OPENCLAW_VPS_API_KEY in Vercel, then redeploy."
+      : !deployment
+        ? "Deploy your agent from the app (Onboarding → Deploy) so messages are forwarded to the server."
+        : "Forward is active. Send a Telegram message and check Vercel logs for [telegram-webhook].",
   });
 }

@@ -491,13 +491,13 @@ export default function OnboardingPage() {
               <div>
                 <h2 className="text-xl font-semibold">Deploy your agent</h2>
                 <p className="text-sm text-muted">
-                  We pull the OpenClaw repo, inject your keys, and deploy your
-                  isolated worker.
+                  Your OpenClaw agent runs 24/7 on an always-on server. We
+                  create and configure it with your Telegram bot and keys.
                 </p>
               </div>
               <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background px-3 py-1 text-xs text-muted">
                 <Bot size={14} />
-                Cloudflare Moltworker
+                Always-on server
               </div>
             </div>
             <div className="rounded-2xl border border-border/60 bg-background/80 p-4 text-sm text-muted">
@@ -513,9 +513,8 @@ export default function OnboardingPage() {
                 </li>
               </ul>
               <p className="mt-3 text-xs text-muted">
-                After paying for Workers Paid and R2 on Cloudflare, click Deploy
-                so your worker receives your Telegram bot token and can reply in
-                Telegram.
+                Click Deploy to create your agent on the server. It will
+                receive your Telegram bot token and reply in Telegram 24/7.
               </p>
             </div>
             <Button

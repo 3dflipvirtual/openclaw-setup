@@ -1,10 +1,11 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Workers and Telegram
+## OpenClaw on a VPS
 
-- **Worker URL**: Each user gets a worker at `https://<workerName>.<subdomain>.workers.dev` (e.g. `openclaw-cadb8106.openclaw-setup.workers.dev`). Set **`CLOUDFLARE_WORKERS_SUBDOMAIN`** in Vercel to the subdomain only (e.g. `openclaw-setup`), not the full hostname.
-- **Trigger events**: In Cloudflare, "Triggers" may show nothing—the worker is invoked by **HTTP**: the Next.js Telegram webhook forwards messages to your worker’s `/api/telegram-hook` endpoint. No cron or queue is required.
-- **Bundle updates**: All deployed workers use one bundle from Supabase Storage. To ship improvements: run `npm run build` and `node scripts/publish-bundle.mjs` in `vendor/moltworker`, then have users redeploy from the app. You can add CI (e.g. GitHub Actions) to build and publish the bundle on push; connecting each worker to a separate GitHub repo is not required.
+OpenClaw runs as a long-lived service on an always-on server (e.g. Oracle Cloud VM). The SaaS calls the VPS HTTP API to create, configure, and delete agents; the Telegram webhook forwards messages to the VPS.
+
+- **VPS env**: Set **`OPENCLAW_VPS_URL`** (e.g. `https://openclaw.example.com`) and **`OPENCLAW_VPS_API_KEY`** in Vercel. The VPS must expose the API described in `docs/VPS-API.md`.
+- **Flow**: User deploys from the app → SaaS calls `POST /api/agents` with user config (Telegram token, API keys) → Telegram messages are forwarded to `POST /api/telegram-hook` on the VPS.
 
 ## Getting Started
 

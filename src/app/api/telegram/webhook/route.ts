@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { decryptSecret } from "@/lib/crypto";
+import { forwardTelegramToVps, isVpsConfigured } from "@/lib/openclaw-vps";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 type TelegramUpdate = {
@@ -175,74 +176,41 @@ export async function POST(request: Request) {
     message: `Telegram: ${text || "[non-text message]"}`,
   });
 
-  // Forward the message to the user's Cloudflare Worker (each user has a unique worker URL)
+  // Forward the message to the OpenClaw VPS (always-on server) for this user's agent
   try {
-    const { data: deployment } = await supabaseAdmin
-      .from("deployments")
-      .select("config")
-      .eq("user_id", link.user_id)
-      .eq("status", "live")
-      .order("created_at", { ascending: false })
-      .maybeSingle();
-
-    const workerName =
-      (deployment?.config as { worker?: string } | null)?.worker ?? null;
-    // Subdomain only, e.g. "openclaw-setup" → worker URL: https://openclaw-xxx.openclaw-setup.workers.dev
-    let workerSubdomain =
-      (process.env.CLOUDFLARE_WORKERS_SUBDOMAIN ?? "").trim();
-    if (workerSubdomain.endsWith(".workers.dev")) {
-      workerSubdomain = workerSubdomain.replace(/\.workers\.dev$/i, "");
-    }
-
-    if (!workerName || !workerSubdomain) {
-      if (!workerName) {
-        console.warn("[telegram-webhook] No live deployment for user", link.user_id);
-      }
-      if (!workerSubdomain) {
-        console.warn(
-          "[telegram-webhook] CLOUDFLARE_WORKERS_SUBDOMAIN not set (e.g. openclaw-setup)"
-        );
-      }
+    if (!isVpsConfigured()) {
+      console.warn("[telegram-webhook] OPENCLAW_VPS_URL or OPENCLAW_VPS_API_KEY not set");
     } else {
-      const { data: gatewaySecret } = await supabaseAdmin
-        .from("secrets")
-        .select("encrypted_value")
+      const { data: deployment } = await supabaseAdmin
+        .from("deployments")
+        .select("config")
         .eq("user_id", link.user_id)
-        .eq("type", "gateway_token")
+        .eq("status", "live")
+        .order("created_at", { ascending: false })
         .maybeSingle();
 
-      if (!gatewaySecret?.encrypted_value) {
-        console.warn("[telegram-webhook] No gateway_token secret for user", link.user_id);
+      const hasLiveDeployment = Boolean(deployment);
+      if (!hasLiveDeployment) {
+        console.warn("[telegram-webhook] No live deployment for user", link.user_id);
       } else {
-        const gatewayToken = decryptSecret(gatewaySecret.encrypted_value);
-        const workerHost = `${workerName}.${workerSubdomain}.workers.dev`;
-        const workerUrl = `https://${workerHost}/api/telegram-hook?token=${encodeURIComponent(
-          gatewayToken
-        )}`;
-
-        const forwardRes = await fetch(workerUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: link.user_id,
-            chatId,
-            text,
-          }),
+        const result = await forwardTelegramToVps({
+          userId: link.user_id,
+          chatId,
+          text,
         });
-        if (!forwardRes.ok) {
+        if (!result.ok) {
           console.error(
-            "[telegram-webhook] Worker forward failed",
-            workerHost,
-            forwardRes.status,
-            await forwardRes.text().catch(() => "")
+            "[telegram-webhook] VPS forward failed",
+            result.status,
+            result.error
           );
         } else {
-          console.log("[telegram-webhook] Forwarded to worker", workerHost);
+          console.log("[telegram-webhook] Forwarded to VPS for user", link.user_id);
         }
       }
     }
   } catch (error) {
-    console.error("Failed to forward Telegram message to worker:", error);
+    console.error("Failed to forward Telegram message to VPS:", error);
   }
 
   // Immediate acknowledgement back to Telegram

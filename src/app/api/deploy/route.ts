@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { decryptSecret } from "@/lib/crypto";
+import { createOrConfigureAgent, isVpsConfigured } from "@/lib/openclaw-vps";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -66,19 +68,6 @@ export async function POST() {
     );
   }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session?.access_token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: refreshed } = await supabase.auth.refreshSession({
-    refresh_token: session.refresh_token,
-  });
-  const accessToken = refreshed?.session?.access_token ?? session.access_token;
-
   const { data: profile } = await supabase
     .from("profiles")
     .select("paid")
@@ -92,34 +81,68 @@ export async function POST() {
     );
   }
 
-  const deployResponse = await fetch(
-    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/deploy-openclaw`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-
-  if (!deployResponse.ok) {
-    const payload = await deployResponse.json().catch(() => ({}));
-    const message = payload?.error ?? "Deployment failed";
-    const status = deployResponse.status;
+  if (!isVpsConfigured()) {
     return NextResponse.json(
-      { error: message },
-      { status: status >= 400 && status < 600 ? status : 500 }
+      {
+        error:
+          "OpenClaw server is not configured. Set OPENCLAW_VPS_URL and OPENCLAW_VPS_API_KEY.",
+      },
+      { status: 503 }
     );
   }
 
-  const deployPayload = await deployResponse.json();
+  // Build agent config: Telegram bot token (required for replies) + optional API keys
+  let telegramBotToken: string | undefined;
+  const { data: link } = await admin
+    .from("telegram_links")
+    .select("bot_token_encrypted")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (link?.bot_token_encrypted) {
+    try {
+      telegramBotToken = decryptSecret(link.bot_token_encrypted);
+    } catch {
+      // continue without token; VPS may still create agent
+    }
+  }
+
+  const { data: secrets } = await admin
+    .from("secrets")
+    .select("type, encrypted_value")
+    .eq("user_id", user.id);
+  const secretMap: Record<string, string> = {};
+  if (secrets?.length) {
+    for (const s of secrets) {
+      try {
+        secretMap[s.type] = decryptSecret(s.encrypted_value);
+      } catch {
+        // skip invalid
+      }
+    }
+  }
+
+  const agentConfig = {
+    userId: user.id,
+    telegramBotToken,
+    openaiApiKey: secretMap.openai_api_key,
+    anthropicApiKey: secretMap.anthropic_api_key,
+    minimaxApiKey: secretMap.minimax_api_key ?? process.env.PLATFORM_MINIMAX_API_KEY,
+    minimaxBaseUrl: secretMap.minimax_base_url ?? process.env.MINIMAX_BASE_URL,
+  };
+
+  const result = await createOrConfigureAgent(agentConfig);
+
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error ?? "Agent creation failed" },
+      { status: result.status && result.status >= 400 ? result.status : 500 }
+    );
+  }
 
   await supabase.from("deployments").insert({
     user_id: user.id,
     status: "live",
-    config: {
-      worker: deployPayload?.worker ?? null,
-    },
+    config: { vps: true },
   });
 
   await supabase
@@ -129,12 +152,11 @@ export async function POST() {
 
   await supabase.from("activity_logs").insert({
     user_id: user.id,
-    message: "Deployed OpenClaw agent (Cloudflare Moltworker queued).",
+    message: "Deployed OpenClaw agent on always-on server.",
   });
 
   return NextResponse.json({
     status: "ok",
-    message: "Deployment queued",
-    worker: deployPayload?.worker ?? null,
+    message: "Agent created on server",
   });
 }
