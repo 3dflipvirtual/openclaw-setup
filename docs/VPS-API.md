@@ -1,8 +1,9 @@
 # OpenClaw VPS API
 
-The SaaS calls these HTTP endpoints on your always-on OpenClaw server (e.g. Oracle Cloud VM). All requests require:
+The SaaS calls these HTTP endpoints on your always-on OpenClaw server (e.g. Oracle Cloud VM). **The VPS only accepts requests that include the API key**; all others receive 401 Unauthorized.
 
-- **Authorization**: `Bearer <OPENCLAW_VPS_API_KEY>` (same key you set in Vercel as `OPENCLAW_VPS_API_KEY`).
+- **Authorization**: `Bearer <OPENCLAW_VPS_API_KEY>` (same key on the VPS and in Vercel; do not commit the key).
+- **Reference implementation**: Run the gateway in `vps-gateway/` (see `vps-gateway/README.md`). Set `OPENCLAW_VPS_API_KEY` on the VPS and the same value in Vercel.
 
 ---
 
