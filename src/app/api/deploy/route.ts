@@ -139,6 +139,17 @@ export async function POST() {
     );
   }
 
+  // Set Telegram webhook to VPS so this bot's updates go to the always-on server
+  if (telegramBotToken && process.env.OPENCLAW_VPS_URL) {
+    await fetch(`https://api.telegram.org/bot${telegramBotToken}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: `${process.env.OPENCLAW_VPS_URL}/api/telegram-hook`,
+      }),
+    });
+  }
+
   await supabase.from("deployments").insert({
     user_id: user.id,
     status: "live",
