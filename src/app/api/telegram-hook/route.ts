@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const MINIMAX_KEY = process.env.PLATFORM_MINIMAX_API_KEY!;
-
 async function askMiniMax(message: string) {
   const res = await fetch("https://api.minimax.chat/v1/text/chatcompletion_v2", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${MINIMAX_KEY}`,
+      Authorization: `Bearer ${process.env.PLATFORM_MINIMAX_API_KEY}`,
     },
     body: JSON.stringify({
       model: "abab6.5s-chat",
@@ -15,13 +13,17 @@ async function askMiniMax(message: string) {
         { role: "system", content: "You are a helpful AI assistant." },
         { role: "user", content: message },
       ],
+      temperature: 0.7,
+      max_tokens: 500,
     }),
   });
 
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
   };
-  return data.choices?.[0]?.message?.content || "No response.";
+  console.log("MINIMAX RAW:", JSON.stringify(data));
+
+  return data?.choices?.[0]?.message?.content || "MiniMax returned empty.";
 }
 
 async function sendTelegram(chatId: number, text: string, botToken: string) {
