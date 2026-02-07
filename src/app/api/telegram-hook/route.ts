@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const VPS_KEY = process.env.OPENCLAW_VPS_API_KEY!;
 const MINIMAX_KEY = process.env.PLATFORM_MINIMAX_API_KEY!;
-
-function unauthorized() {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
 
 async function askMiniMax(message: string) {
   const res = await fetch("https://api.minimax.chat/v1/text/chatcompletion_v2", {
@@ -41,9 +36,6 @@ async function sendTelegram(chatId: number, text: string, botToken: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = req.headers.get("authorization") || "";
-  if (auth !== `Bearer ${VPS_KEY}`) return unauthorized();
-
   const update = (await req.json()) as {
     message?: { chat: { id: number }; text?: string };
   };
