@@ -58,6 +58,8 @@ export default function Home() {
   const [deployDone, setDeployDone] = useState(false);
   const [deployError, setDeployError] = useState<string | null>(null);
   const [isPaid, setIsPaid] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -82,10 +84,84 @@ export default function Home() {
   }, []);
 
   const signInGoogle = async () => {
-    await supabase.auth.signInWithOAuth({
+    setSignInError(null);
+    setSigningIn(true);
+    const origin = window.location.origin;
+    const redirectTo = `${origin}/auth/callback`;
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/` },
+      options: { redirectTo, skipBrowserRedirect: true },
     });
+
+    if (error) {
+      setSignInError(error.message ?? "Sign-in failed");
+      setSigningIn(false);
+      return;
+    }
+    if (!data?.url) {
+      setSignInError("Could not start sign-in");
+      setSigningIn(false);
+      return;
+    }
+
+    const width = 500;
+    const height = 600;
+    const left = Math.round((window.screen.width - width) / 2);
+    const top = Math.round((window.screen.height - height) / 2);
+    const popup = window.open(
+      data.url,
+      "google-signin",
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+    );
+
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.origin !== origin || event.data?.type !== "supabase-auth") return;
+      window.removeEventListener("message", handleMessage);
+      clearInterval(interval);
+      try {
+        const { code, access_token, refresh_token } = event.data;
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw new Error(error.message);
+        } else if (access_token && refresh_token) {
+          await supabase.auth.setSession({ access_token, refresh_token });
+        } else {
+          setSigningIn(false);
+          return;
+        }
+        const { data: userData } = await supabase.auth.getUser();
+        setUser(userData.user ? { id: userData.user.id } : null);
+        if (userData.user) {
+          const [pr, ls] = await Promise.all([
+            fetch("/api/profile"),
+            fetch("/api/telegram/link-status"),
+          ]);
+          if (pr.ok) {
+            const p = await pr.json();
+            setIsPaid(Boolean(p?.paid));
+          }
+          if (ls.ok) {
+            const l = await ls.json();
+            setTelegramLinked(Boolean(l?.verified));
+            if (l?.code) setTelegramCode(l.code);
+          }
+        }
+      } catch {
+        setSignInError("Session could not be applied");
+      }
+      setSigningIn(false);
+    };
+
+    const interval = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(interval);
+        window.removeEventListener("message", handleMessage);
+        setSigningIn(false);
+      }
+    }, 300);
+
+    window.addEventListener("message", handleMessage);
   };
 
   const signOut = async () => {
@@ -197,10 +273,18 @@ export default function Home() {
               size="lg"
               className="w-full gap-2 bg-foreground text-background hover:bg-foreground/90"
               onClick={signInGoogle}
+              disabled={signingIn}
             >
-              <GoogleIcon />
-              Sign in with Google
+              {signingIn ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <GoogleIcon />
+              )}
+              {signingIn ? "Signing in…" : "Sign in with Google"}
             </Button>
+            {signInError && (
+              <p className="text-center text-xs text-red-600">{signInError}</p>
+            )}
             <p className="mt-4 text-center text-xs text-muted">
               Sign in to deploy your AI assistant and connect Telegram.
             </p>
