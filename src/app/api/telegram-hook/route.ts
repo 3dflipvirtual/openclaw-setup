@@ -3,6 +3,34 @@ import { NextRequest, NextResponse } from "next/server";
 import { decryptSecret } from "@/lib/crypto";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
+const RATE_LIMIT = { perChat: { limit: 10, windowSeconds: 60 }, perUser: { limit: 30, windowSeconds: 60 } };
+
+async function checkRateLimit(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  key: string,
+  limit: number,
+  windowSeconds: number
+) {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - windowSeconds * 1000);
+  const { data: existing } = await supabase
+    .from("rate_limits")
+    .select("count, window_start")
+    .eq("key", key)
+    .maybeSingle();
+  if (!existing || new Date(existing.window_start) < windowStart) {
+    await supabase.from("rate_limits").upsert({
+      key,
+      window_start: now.toISOString(),
+      count: 1,
+    });
+    return true;
+  }
+  if (existing.count >= limit) return false;
+  await supabase.from("rate_limits").update({ count: existing.count + 1 }).eq("key", key);
+  return true;
+}
+
 async function askAI(message: string) {
   const res = await fetch("https://api.minimax.io/anthropic/v1/messages", {
     method: "POST",
@@ -36,15 +64,16 @@ async function askAI(message: string) {
   );
 }
 
-async function sendTelegram(chatId: number, text: string, botToken: string) {
-  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+async function sendTelegram(chatId: number, text: string, botToken: string): Promise<void> {
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-    }),
+    body: JSON.stringify({ chat_id: chatId, text }),
   });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Telegram API ${res.status}: ${body.slice(0, 200)}`);
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -56,7 +85,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminSupabaseClient();
   const { data: link } = await admin
     .from("telegram_links")
-    .select("bot_token_encrypted")
+    .select("user_id, bot_token_encrypted")
     .eq("webhook_secret", secret)
     .maybeSingle();
 
@@ -67,7 +96,8 @@ export async function POST(req: NextRequest) {
   let botToken: string;
   try {
     botToken = decryptSecret(link.bot_token_encrypted);
-  } catch {
+  } catch (err) {
+    console.error("[telegram-hook] decrypt failed", { userId: link.user_id });
     return NextResponse.json({ ok: true });
   }
 
@@ -80,13 +110,40 @@ export async function POST(req: NextRequest) {
   const chatId = update.message.chat.id;
   const text = update.message.text || "";
 
-  console.log("📩 Message:", text);
+  const chatKey = `telegram-hook:chat:${chatId}`;
+  const userKey = `telegram-hook:user:${link.user_id}`;
+  const chatOk = await checkRateLimit(admin, chatKey, RATE_LIMIT.perChat.limit, RATE_LIMIT.perChat.windowSeconds);
+  const userOk = await checkRateLimit(admin, userKey, RATE_LIMIT.perUser.limit, RATE_LIMIT.perUser.windowSeconds);
+  if (!chatOk || !userOk) {
+    try {
+      await sendTelegram(chatId, "Rate limit. Please wait a moment.", botToken);
+    } catch {
+      // ignore
+    }
+    return NextResponse.json({ ok: true });
+  }
 
-  const reply = await askAI(text);
+  console.log("[telegram-hook] message", { chatId, userId: link.user_id, text: text.slice(0, 80) });
 
-  console.log("🤖 Reply:", reply);
+  let reply: string;
+  try {
+    reply = await askAI(text);
+  } catch (err) {
+    console.error("[telegram-hook] askAI failed", { chatId, userId: link.user_id, error: String(err) });
+    try {
+      await sendTelegram(chatId, "Sorry, the AI failed. Try again in a moment.", botToken);
+    } catch {
+      // ignore
+    }
+    return NextResponse.json({ ok: true });
+  }
 
-  await sendTelegram(chatId, reply, botToken);
+  try {
+    await sendTelegram(chatId, reply, botToken);
+  } catch (err) {
+    console.error("[telegram-hook] sendTelegram failed", { chatId, userId: link.user_id, error: String(err) });
+    return NextResponse.json({ ok: true });
+  }
 
   return NextResponse.json({ ok: true });
 }
