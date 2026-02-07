@@ -6,6 +6,7 @@ async function askMiniMax(message: string) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.PLATFORM_MINIMAX_API_KEY}`,
+      "X-Group-Id": process.env.MINIMAX_GROUP_ID!,
     },
     body: JSON.stringify({
       model: "abab6.5s-chat",
