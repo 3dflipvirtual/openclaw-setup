@@ -1,30 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 
-async function askMiniMax(message: string) {
-  const res = await fetch("https://api.minimax.chat/v1/text/chatcompletion_v2", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.PLATFORM_MINIMAX_API_KEY}`,
-      "X-Group-Id": process.env.MINIMAX_GROUP_ID!,
-    },
-    body: JSON.stringify({
-      model: "abab6.5s-chat",
-      messages: [
-        { role: "system", content: "You are a helpful AI assistant." },
-        { role: "user", content: message },
-      ],
-      temperature: 0.7,
-      max_tokens: 500,
-    }),
-  });
+async function askAI(message: string) {
+  const res = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" +
+      process.env.GEMINI_API_KEY,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: message }],
+          },
+        ],
+      }),
+    }
+  );
 
   const data = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   };
-  console.log("MINIMAX RAW:", JSON.stringify(data));
+  console.log("GEMINI RAW:", JSON.stringify(data));
 
-  return data?.choices?.[0]?.message?.content || "MiniMax returned empty.";
+  return (
+    data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+    "Gemini returned nothing."
+  );
 }
 
 async function sendTelegram(chatId: number, text: string, botToken: string) {
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
 
   console.log("📩 Message:", text);
 
-  const reply = await askMiniMax(text);
+  const reply = await askAI(text);
 
   console.log("🤖 Reply:", reply);
 
