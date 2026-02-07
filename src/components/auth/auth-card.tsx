@@ -13,7 +13,7 @@ export function AuthCard({
     <div className="glass-card w-full max-w-lg rounded-3xl p-8">
       <div className="mb-6 space-y-2 text-center">
         <h1 className="text-2xl font-bold">{title}</h1>
-        <p className="text-sm text-muted">{subtitle}</p>
+        {subtitle ? <p className="text-sm text-muted">{subtitle}</p> : null}
       </div>
       {children}
     </div>

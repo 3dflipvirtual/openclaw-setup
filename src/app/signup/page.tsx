@@ -50,8 +50,8 @@ export default function SignupPage() {
   return (
     <div className="mx-auto flex min-h-[80vh] w-full max-w-6xl items-center justify-center px-6 py-16">
       <AuthCard
-        title="Create your OpenClaw Setup account"
-        subtitle="It only takes a minute. Then we send you straight to checkout."
+        title="Sign up"
+        subtitle=""
       >
         <form className="space-y-4" onSubmit={handleEmailSignup}>
           <div className="space-y-2">

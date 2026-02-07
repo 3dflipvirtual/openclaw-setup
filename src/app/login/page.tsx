@@ -29,14 +29,14 @@ export default function LoginPage() {
       setError(signInError.message);
       return;
     }
-    router.push("/dashboard");
+    router.push("/onboarding");
   };
 
   return (
     <div className="mx-auto flex min-h-[80vh] w-full max-w-6xl items-center justify-center px-6 py-16">
       <AuthCard
-        title="Welcome back"
-        subtitle="Log in to see your lobster's live status."
+        title="Log in"
+        subtitle=""
       >
         <form className="space-y-4" onSubmit={handleLogin}>
           <div className="space-y-2">
