@@ -93,9 +93,10 @@ export async function POST() {
 
   // Build agent config: Telegram bot token (required for replies) + optional API keys
   let telegramBotToken: string | undefined;
+  let webhookSecret: string | undefined;
   const { data: link } = await admin
     .from("telegram_links")
-    .select("bot_token_encrypted")
+    .select("bot_token_encrypted, webhook_secret")
     .eq("user_id", user.id)
     .maybeSingle();
   if (link?.bot_token_encrypted) {
@@ -104,6 +105,9 @@ export async function POST() {
     } catch {
       // continue without token; VPS may still create agent
     }
+  }
+  if (link?.webhook_secret) {
+    webhookSecret = link.webhook_secret;
   }
 
   const { data: secrets } = await admin
@@ -139,14 +143,13 @@ export async function POST() {
     );
   }
 
-  // Set Telegram webhook to VPS so this bot's updates go to the always-on server
-  if (telegramBotToken && process.env.OPENCLAW_VPS_URL) {
+  // Set Telegram webhook to VPS so this bot's updates go to the always-on server (URL includes secret for per-user lookup)
+  if (telegramBotToken && webhookSecret && process.env.OPENCLAW_VPS_URL) {
+    const hookUrl = `${process.env.OPENCLAW_VPS_URL}/api/telegram-hook?secret=${encodeURIComponent(webhookSecret)}`;
     await fetch(`https://api.telegram.org/bot${telegramBotToken}/setWebhook`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url: `${process.env.OPENCLAW_VPS_URL}/api/telegram-hook`,
-      }),
+      body: JSON.stringify({ url: hookUrl }),
     });
   }
 

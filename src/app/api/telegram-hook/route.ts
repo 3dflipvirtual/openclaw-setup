@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { decryptSecret } from "@/lib/crypto";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+
 async function askAI(message: string) {
   const res = await fetch("https://api.minimax.io/anthropic/v1/messages", {
     method: "POST",
@@ -45,6 +48,29 @@ async function sendTelegram(chatId: number, text: string, botToken: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const secret = new URL(req.url).searchParams.get("secret");
+  if (!secret) {
+    return NextResponse.json({ ok: true });
+  }
+
+  const admin = createAdminSupabaseClient();
+  const { data: link } = await admin
+    .from("telegram_links")
+    .select("bot_token_encrypted")
+    .eq("webhook_secret", secret)
+    .maybeSingle();
+
+  if (!link?.bot_token_encrypted) {
+    return NextResponse.json({ ok: true });
+  }
+
+  let botToken: string;
+  try {
+    botToken = decryptSecret(link.bot_token_encrypted);
+  } catch {
+    return NextResponse.json({ ok: true });
+  }
+
   const update = (await req.json()) as {
     message?: { chat: { id: number }; text?: string };
   };
@@ -53,9 +79,6 @@ export async function POST(req: NextRequest) {
 
   const chatId = update.message.chat.id;
   const text = update.message.text || "";
-
-  // TEMP: single test bot token (we generalize after)
-  const botToken = process.env.TEST_TELEGRAM_BOT_TOKEN!;
 
   console.log("📩 Message:", text);
 
