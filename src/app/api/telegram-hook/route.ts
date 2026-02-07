@@ -1,30 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 
 async function askAI(message: string) {
-  const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" +
-      process.env.GEMINI_API_KEY,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: message }],
-          },
-        ],
-      }),
-    }
-  );
+  const res = await fetch("https://api.minimax.io/anthropic/v1/messages", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.PLATFORM_MINIMAX_API_KEY}`,
+      "Content-Type": "application/json",
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "MiniMax-M2.1",
+      max_tokens: 200,
+      temperature: 0.7,
+      system: "You are a helpful AI assistant.",
+      messages: [
+        {
+          role: "user",
+          content: message,
+        },
+      ],
+    }),
+  });
 
   const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    content?: Array<{ type: string; text?: string }>;
   };
-  console.log("GEMINI RAW:", JSON.stringify(data));
+  console.log("MINIMAX RAW:", JSON.stringify(data));
 
   return (
-    data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-    "Gemini returned nothing."
+    data?.content?.find((c) => c.type === "text")?.text ||
+    "MiniMax returned nothing."
   );
 }
 
