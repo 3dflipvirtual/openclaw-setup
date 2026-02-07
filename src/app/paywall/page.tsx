@@ -14,27 +14,20 @@ const whopCheckoutUrl =
 function PaywallContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get("return") ?? "/onboarding";
+  const returnTo = searchParams.get("return") ?? "/";
   const [confirming, setConfirming] = useState(false);
 
   return (
     <div className="mx-auto flex min-h-[70vh] w-full max-w-4xl items-center justify-center px-6 py-16">
       <div className="glass-card flex w-full flex-col gap-6 rounded-3xl p-8 text-center">
-        <span className="text-sm font-semibold uppercase tracking-[0.2em] text-muted">
-          Final step
-        </span>
-        <h1 className="text-3xl font-bold">Finish checkout to deploy</h1>
-        <p className="text-muted">
-          You are moments away from waking your lobster. Complete checkout, then
-          we will deploy your OpenClaw agent.
-        </p>
+        <h1 className="text-3xl font-bold">Checkout to deploy</h1>
         <div className="flex flex-col items-center gap-3">
           <Link
             href={whopCheckoutUrl}
             className={buttonVariants({ size: "lg" })}
           >
             <CreditCard size={16} />
-            Continue to Whop checkout
+            Checkout
           </Link>
           <Button
             variant="outline"
@@ -46,12 +39,9 @@ function PaywallContent() {
             }}
             disabled={confirming}
           >
-            {confirming ? "Confirming..." : "I completed payment — deploy my agent"}
+            {confirming ? "Confirming..." : "I paid — deploy"}
           </Button>
         </div>
-        <p className="text-xs text-muted">
-          14-day refund guarantee. No hidden fees. Cancel anytime.
-        </p>
       </div>
     </div>
   );
