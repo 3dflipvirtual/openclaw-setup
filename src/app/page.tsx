@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot, CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase/client";
@@ -27,6 +27,19 @@ function GoogleIcon() {
         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
       />
     </svg>
+  );
+}
+
+function TelegramIcon({ className }: { className?: string }) {
+  return (
+    <span
+      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#0088cc] text-white ${className ?? ""}`}
+      aria-hidden
+    >
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+      </svg>
+    </span>
   );
 }
 
@@ -163,36 +176,49 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-lg px-6 py-12">
-      <div className="mb-10 text-center">
+      <div className="mb-8 text-center">
         <h1 className="text-2xl font-bold">OpenClaw</h1>
         <p className="mt-1 text-sm text-muted">Bot + deploy. One page.</p>
       </div>
 
-      {!user ? (
-        <div className="flex flex-col items-center gap-4">
-          <Button
-            size="lg"
-            className="gap-2"
-            onClick={signInGoogle}
-          >
-            <GoogleIcon />
-            Sign in
-          </Button>
-        </div>
-      ) : (
-        <>
-          <div className="mb-6">
-            <button
-              type="button"
-              className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-background px-4 py-3 text-left text-sm font-medium"
-              onClick={() => setTelegramOpen((o) => !o)}
+      <div className="glass-card rounded-2xl p-6">
+        {!user ? (
+          <>
+            <p className="mb-4 text-sm font-medium text-foreground">
+              Which channel do you want to use?
+            </p>
+            <div className="mb-6 flex justify-center">
+              <div className="inline-flex items-center gap-3 rounded-xl border-2 border-border bg-card px-4 py-3 text-sm font-medium ring-1 ring-foreground/10">
+                <TelegramIcon />
+                <span>Telegram</span>
+              </div>
+            </div>
+            <Button
+              size="lg"
+              className="w-full gap-2 bg-foreground text-background hover:bg-foreground/90"
+              onClick={signInGoogle}
             >
-              <span className="flex items-center gap-2">
-                <Bot className="h-5 w-5" />
-                Telegram
-              </span>
-              <ChevronDown className={`h-4 w-4 transition ${telegramOpen ? "rotate-180" : ""}`} />
-            </button>
+              <GoogleIcon />
+              Sign in with Google
+            </Button>
+            <p className="mt-4 text-center text-xs text-muted">
+              Sign in to deploy your AI assistant and connect Telegram.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="mb-6">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-background px-4 py-3 text-left text-sm font-medium transition hover:bg-muted/30"
+                onClick={() => setTelegramOpen((o) => !o)}
+              >
+                <span className="flex items-center gap-2">
+                  <TelegramIcon className="h-9 w-9" />
+                  Telegram
+                </span>
+                <ChevronDown className={`h-4 w-4 transition ${telegramOpen ? "rotate-180" : ""}`} />
+              </button>
             {telegramOpen && (
               <div className="mt-2 space-y-3 rounded-xl border border-border/60 bg-background/60 p-4">
                 <input
@@ -263,13 +289,14 @@ export default function Home() {
             </div>
           )}
 
-          <p className="mt-8 text-center">
-            <button type="button" onClick={signOut} className="text-xs text-muted underline">
-              Sign out
-            </button>
-          </p>
-        </>
-      )}
+            <p className="mt-6 text-center">
+              <button type="button" onClick={signOut} className="text-xs text-muted underline hover:text-foreground">
+                Sign out
+              </button>
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }
