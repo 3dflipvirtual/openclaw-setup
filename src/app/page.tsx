@@ -215,7 +215,7 @@ export default function Home() {
   return (
     <div className="mx-auto max-w-lg px-6 py-12">
       <div className="mb-8 text-center">
-        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+        <h1 className="whitespace-nowrap text-4xl font-bold tracking-tight sm:text-5xl">
           Deploy Openclaw in one click.
         </h1>
       </div>
@@ -226,7 +226,7 @@ export default function Home() {
             <p className="mb-4 text-base font-medium text-foreground sm:text-lg">
               Which channel do you want to use for sending messages?
             </p>
-            <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
+            <div className="mb-6 flex flex-nowrap items-center justify-center gap-3 overflow-x-auto">
               <button
                 type="button"
                 onClick={() => setTelegramChannelSelected(true)}
