@@ -74,12 +74,31 @@ export default function Home() {
     }
   }, [router]);
 
+  // Listen for auth state changes (e.g. popup login completes)
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setUser({ id: session.user.id });
+        fetch("/api/profile")
+          .then((pr) => pr.ok && pr.json())
+          .then((p) => setIsPaid(Boolean(p?.paid)));
+        fetch("/api/telegram/link-status")
+          .then((ls) => ls.ok && ls.json())
+          .then((l) => {
+            setTelegramLinked(Boolean(l?.verified));
+            if (l?.code) setTelegramCode(l.code);
+          });
+      }
+    });
+    return () => listener?.subscription?.unsubscribe();
+  }, []);
+
   useEffect(() => {
     const isPopupWithAuth =
       typeof window !== "undefined" &&
       (window.opener != null || window.name === "google-signin") &&
       (window.location.search?.includes("code=") || (window.location.hash?.length ?? 0) > 1);
-    if (isPopupWithAuth) return; // redirect effect will send to /auth/callback; skip init
+    if (isPopupWithAuth) return;
 
     const init = async () => {
       const { data } = await supabase.auth.getUser();
@@ -99,17 +118,14 @@ export default function Home() {
       }
       setLoading(false);
 
-      // If we're in a popup with no user and no auth in URL, redirect this window to OAuth
-      // so the user doesn't have to click "Sign in" again (avoids second popup)
       const isPopup = typeof window !== "undefined" && (window.opener != null || window.name === "google-signin");
       const hasAuthInUrl =
         typeof window !== "undefined" &&
         (window.location.search?.includes("code=") || (window.location.hash?.length ?? 0) > 1);
       if (isPopup && !data.user && !hasAuthInUrl) {
-        const origin = window.location.origin;
         const { data: oauth } = await supabase.auth.signInWithOAuth({
           provider: "google",
-          options: { redirectTo: `${origin}/auth/callback`, skipBrowserRedirect: true },
+          options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
         });
         if (oauth?.url) window.location.href = oauth.url;
       }
@@ -120,18 +136,13 @@ export default function Home() {
   const signInGoogle = async () => {
     setSignInError(null);
     setSigningIn(true);
-    const origin = window.location.origin;
-    const channelId = crypto.randomUUID();
-    if (typeof sessionStorage !== "undefined") {
-      sessionStorage.setItem("supabase-auth-channel", channelId);
-    }
-    const redirectTo = `${origin}/auth/callback?auth_channel=${channelId}`;
-
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo, skipBrowserRedirect: true },
+      options: {
+        redirectTo: window.location.origin,
+        skipBrowserRedirect: true,
+      },
     });
-
     if (error) {
       setSignInError(error.message ?? "Sign-in failed");
       setSigningIn(false);
@@ -142,141 +153,13 @@ export default function Home() {
       setSigningIn(false);
       return;
     }
-
-    // If we're already inside a popup, redirect this window to OAuth instead of opening another
-    // popup — so the opener stays the original page
     const isInPopup = typeof window !== "undefined" && (window.opener != null || window.name === "google-signin");
     if (isInPopup) {
       window.location.href = data.url;
       return;
     }
-
-    let popupCheckInterval: ReturnType<typeof setInterval> | null = null;
-    const isSameSite = (urlOrigin: string) => {
-      if (urlOrigin === origin) return true;
-      try {
-        const a = new URL(origin);
-        const b = new URL(urlOrigin);
-        const strip = (h: string) => h.replace(/^www\./, "");
-        return a.protocol === b.protocol && strip(a.hostname) === strip(b.hostname) && a.port === b.port;
-      } catch {
-        return false;
-      }
-    };
-    const applyAuthResult = async (payload: { code?: string; access_token?: string; refresh_token?: string }) => {
-      window.removeEventListener("message", handleMessage);
-      bcChannel?.close();
-      if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("supabase-auth-channel");
-      if (popupCheckInterval) clearInterval(popupCheckInterval);
-      try {
-        if (typeof popup?.close === "function") popup.close();
-      } catch {
-        // ignore
-      }
-      try {
-        const { code, access_token, refresh_token } = payload;
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw new Error(error.message);
-        } else if (access_token && refresh_token) {
-          await supabase.auth.setSession({ access_token, refresh_token });
-        } else {
-          setSigningIn(false);
-          return;
-        }
-        const { data: userData } = await supabase.auth.getUser();
-        setUser(userData.user ? { id: userData.user.id } : null);
-        if (userData.user) {
-          const [pr, ls] = await Promise.all([
-            fetch("/api/profile"),
-            fetch("/api/telegram/link-status"),
-          ]);
-          if (pr.ok) {
-            const p = await pr.json();
-            setIsPaid(Boolean(p?.paid));
-          }
-          if (ls.ok) {
-            const l = await ls.json();
-            setTelegramLinked(Boolean(l?.verified));
-            if (l?.code) setTelegramCode(l.code);
-          }
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : typeof err === "string" ? err : "Session could not be applied";
-        setSignInError(message);
-      }
-      setSigningIn(false);
-    };
-
-    const handleMessage = async (event: MessageEvent) => {
-      if (!isSameSite(event.origin) || event.data?.type !== "supabase-auth") return;
-      await applyAuthResult(event.data);
-    };
-
-    let bcChannel: BroadcastChannel | null = null;
-    const bcHandler = async (event: MessageEvent<{ type: string; code?: string; access_token?: string; refresh_token?: string }>) => {
-      if (event.data?.type !== "supabase-auth") return;
-      await applyAuthResult(event.data);
-    };
-    try {
-      bcChannel = new BroadcastChannel(`supabase-auth-${channelId}`);
-      bcChannel.onmessage = bcHandler;
-    } catch {
-      // BroadcastChannel not supported
-    }
-
-    window.addEventListener("message", handleMessage);
-
-    const width = 500;
-    const height = 600;
-    const left = Math.round((window.screen.width - width) / 2);
-    const top = Math.round((window.screen.height - height) / 2);
-    const popup = window.open(
-      data.url,
-      "google-signin",
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
-    );
-
-    popupCheckInterval = setInterval(async () => {
-      try {
-        // COOP can block popup.closed; catch so we don't break the interval
-        if (typeof popup?.closed === "undefined" || popup.closed) {
-          if (popupCheckInterval) clearInterval(popupCheckInterval);
-          window.removeEventListener("message", handleMessage);
-          bcChannel?.close();
-
-          // Popup closed (or unreachable) - check if we have a session now
-          try {
-            const { data: sessionData } = await supabase.auth.getSession();
-            if (sessionData?.session) {
-              const { data: userData } = await supabase.auth.getUser();
-              setUser(userData.user ? { id: userData.user.id } : null);
-              if (userData.user) {
-                const [pr, ls] = await Promise.all([
-                  fetch("/api/profile"),
-                  fetch("/api/telegram/link-status"),
-                ]);
-                if (pr.ok) {
-                  const p = await pr.json();
-                  setIsPaid(Boolean(p?.paid));
-                }
-                if (ls.ok) {
-                  const l = await ls.json();
-                  setTelegramLinked(Boolean(l?.verified));
-                  if (l?.code) setTelegramCode(l.code);
-                }
-              }
-            }
-          } catch {
-            // Ignore - user can refresh if needed
-          }
-          setSigningIn(false);
-        }
-      } catch {
-        // COOP blocked access to popup.closed; ignore, message handler may still work
-      }
-    }, 300);
+    window.open(data.url, "google-signin", "width=500,height=600,scrollbars=yes");
+    setSigningIn(false);
   };
 
   const signOut = async () => {
