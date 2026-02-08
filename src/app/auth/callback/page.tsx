@@ -70,10 +70,10 @@ function AuthCallbackContent() {
         if (error) {
           console.error("Code exchange failed in redirect flow:", error);
           setStatus("error");
-          setTimeout(() => router.replace("/"), 2000);
+          setTimeout(() => router.replace("/app"), 2000);
           return;
         }
-        router.replace("/");
+        router.replace("/app");
         return;
       }
 
@@ -88,7 +88,7 @@ function AuthCallbackContent() {
       if (error || !session) {
         setStatus("error");
         if (!isPopup) {
-          setTimeout(() => router.replace("/"), 2000);
+          setTimeout(() => router.replace("/app"), 2000);
         }
         return;
       }
@@ -115,7 +115,7 @@ function AuthCallbackContent() {
         // Popup but no opener - session is set, ask user to close
         setStatus("close-manually");
       } else {
-        router.replace("/");
+        router.replace("/app");
       }
     }
 

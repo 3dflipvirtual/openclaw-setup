@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 export default function LoginPage() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/");
+    router.replace("/app");
   }, [router]);
   return null;
 }
