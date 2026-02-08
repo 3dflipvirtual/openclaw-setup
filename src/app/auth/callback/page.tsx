@@ -30,18 +30,14 @@ function AuthCallbackContent() {
       // POPUP FLOW: We have a code and this appears to be a popup window
       if (code && hasOpener) {
         try {
-          // Send the code to the opener window for exchange (it has the code_verifier)
           window.opener.postMessage(
             { type: AUTH_MESSAGE_TYPE, code },
             origin
           );
           setStatus("done");
-          // Small delay to ensure message is received
-          await new Promise((r) => setTimeout(r, 500));
+          // Close immediately so browser allows it (tied to opener's user gesture)
           window.close();
-          // If window.close() didn't work, show manual close message
-          await new Promise((r) => setTimeout(r, 200));
-          setStatus("close-manually");
+          setTimeout(() => setStatus("close-manually"), 500);
         } catch (err) {
           console.error("Failed to send auth message to opener:", err);
           setStatus("error");
@@ -109,10 +105,8 @@ function AuthCallbackContent() {
             origin
           );
           setStatus("done");
-          await new Promise((r) => setTimeout(r, 500));
           window.close();
-          await new Promise((r) => setTimeout(r, 200));
-          setStatus("close-manually");
+          setTimeout(() => setStatus("close-manually"), 500);
         } catch (err) {
           console.error("Failed to send session to opener:", err);
           setStatus("close-manually");

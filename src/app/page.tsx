@@ -141,6 +141,11 @@ export default function Home() {
       window.removeEventListener("message", handleMessage);
       if (popupCheckInterval) clearInterval(popupCheckInterval);
       try {
+        if (typeof popup?.close === "function") popup.close();
+      } catch {
+        // ignore
+      }
+      try {
         const { code, access_token, refresh_token } = event.data;
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
