@@ -105,20 +105,21 @@ export default function Home() {
       return;
     }
 
-    const width = 500;
-    const height = 600;
-    const left = Math.round((window.screen.width - width) / 2);
-    const top = Math.round((window.screen.height - height) / 2);
-    const popup = window.open(
-      data.url,
-      "google-signin",
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
-    );
-
+    const isSameSite = (urlOrigin: string) => {
+      if (urlOrigin === origin) return true;
+      try {
+        const a = new URL(origin);
+        const b = new URL(urlOrigin);
+        const strip = (h: string) => h.replace(/^www\./, "");
+        return a.protocol === b.protocol && strip(a.hostname) === strip(b.hostname) && a.port === b.port;
+      } catch {
+        return false;
+      }
+    };
     const handleMessage = async (event: MessageEvent) => {
-      if (event.origin !== origin || event.data?.type !== "supabase-auth") return;
+      if (!isSameSite(event.origin) || event.data?.type !== "supabase-auth") return;
       window.removeEventListener("message", handleMessage);
-      clearInterval(interval);
+      if (intervalRef.current) clearInterval(intervalRef.current);
       try {
         const { code, access_token, refresh_token } = event.data;
         if (code) {
@@ -153,15 +154,25 @@ export default function Home() {
       setSigningIn(false);
     };
 
-    const interval = setInterval(() => {
+    window.addEventListener("message", handleMessage);
+
+    const width = 500;
+    const height = 600;
+    const left = Math.round((window.screen.width - width) / 2);
+    const top = Math.round((window.screen.height - height) / 2);
+    const popup = window.open(
+      data.url,
+      "google-signin",
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+    );
+
+    popupCheckInterval = setInterval(() => {
       if (popup?.closed) {
-        clearInterval(interval);
+        if (popupCheckInterval) clearInterval(popupCheckInterval);
         window.removeEventListener("message", handleMessage);
         setSigningIn(false);
       }
     }, 300);
-
-    window.addEventListener("message", handleMessage);
   };
 
   const signOut = async () => {

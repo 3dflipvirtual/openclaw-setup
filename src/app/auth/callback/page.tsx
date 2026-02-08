@@ -28,6 +28,7 @@ function AuthCallbackContent() {
             origin
           );
           setStatus("done");
+          await new Promise((r) => setTimeout(r, 300));
           window.close();
         } catch {
           setStatus("error");
@@ -71,6 +72,7 @@ function AuthCallbackContent() {
             origin
           );
           setStatus("done");
+          await new Promise((r) => setTimeout(r, 300));
           window.close();
         } catch {
           setStatus("error");
