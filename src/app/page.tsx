@@ -105,6 +105,7 @@ export default function Home() {
       return;
     }
 
+    let popupCheckInterval: ReturnType<typeof setInterval> | null = null;
     const isSameSite = (urlOrigin: string) => {
       if (urlOrigin === origin) return true;
       try {
