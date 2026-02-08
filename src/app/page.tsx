@@ -98,6 +98,21 @@ export default function Home() {
         }
       }
       setLoading(false);
+
+      // If we're in a popup with no user and no auth in URL, redirect this window to OAuth
+      // so the user doesn't have to click "Sign in" again (avoids second popup)
+      const isPopup = typeof window !== "undefined" && (window.opener != null || window.name === "google-signin");
+      const hasAuthInUrl =
+        typeof window !== "undefined" &&
+        (window.location.search?.includes("code=") || (window.location.hash?.length ?? 0) > 1);
+      if (isPopup && !data.user && !hasAuthInUrl) {
+        const origin = window.location.origin;
+        const { data: oauth } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: `${origin}/auth/callback`, skipBrowserRedirect: true },
+        });
+        if (oauth?.url) window.location.href = oauth.url;
+      }
     };
     init();
   }, []);
@@ -121,6 +136,14 @@ export default function Home() {
     if (!data?.url) {
       setSignInError("Could not start sign-in");
       setSigningIn(false);
+      return;
+    }
+
+    // If we're already inside a popup, redirect this window to OAuth instead of opening another
+    // popup — so the opener stays the original page
+    const isInPopup = typeof window !== "undefined" && (window.opener != null || window.name === "google-signin");
+    if (isInPopup) {
+      window.location.href = data.url;
       return;
     }
 
