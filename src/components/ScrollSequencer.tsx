@@ -115,21 +115,40 @@ function ScrollStep({
   start,
   end,
   children,
+  isFirst = false,
+  isLast = false,
 }: {
   scrollYProgress: ReturnType<typeof useScroll>["scrollYProgress"];
   start: number;
   end: number;
   children: React.ReactNode;
+  isFirst?: boolean;
+  isLast?: boolean;
 }) {
+  // First step: start at opacity 1, fade out normally
+  // Last step: fade in normally, stay at opacity 1
+  // Middle steps: fade in and out
+  const opacityValues = isFirst
+    ? [1, 1, 1, 0]
+    : isLast
+      ? [0, 1, 1, 1]
+      : [0, 1, 1, 0];
+
+  const yValues = isFirst
+    ? [0, 0, 0, -20]
+    : isLast
+      ? [20, 0, 0, 0]
+      : [20, 0, 0, -20];
+
   const opacity = useTransform(
     scrollYProgress,
     [start, start + 0.05, end - 0.05, end],
-    [0, 1, 1, 0]
+    opacityValues
   );
   const y = useTransform(
     scrollYProgress,
     [start, start + 0.05, end - 0.05, end],
-    [20, 0, 0, -20]
+    yValues
   );
   return (
     <motion.div
@@ -181,7 +200,7 @@ export default function ScrollSequencer({
 
         {/* Animated Text Layers */}
         <div className="relative z-10 text-center px-6 max-w-4xl w-full">
-          <ScrollStep scrollYProgress={scrollYProgress} start={0} end={stepSize}>
+          <ScrollStep scrollYProgress={scrollYProgress} start={0} end={stepSize} isFirst>
             <InitialHero
               onNewsletter={onNewsletter}
               onTokenSubmit={onTokenSubmit}
@@ -218,6 +237,7 @@ export default function ScrollSequencer({
             scrollYProgress={scrollYProgress}
             start={stepSize * 4}
             end={1}
+            isLast
           >
             <FinalCTA onDeploy={onDeploy} onTokenSubmit={onTokenSubmit} />
           </ScrollStep>
