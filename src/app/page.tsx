@@ -21,6 +21,8 @@ export default function Home() {
 
   return (
     <>
+      <div className="nebula-cloud" />
+      <div className="nebula-cloud-2" />
       <div className="film-grain" aria-hidden />
       <Navbar />
       <ScrollSequencer
