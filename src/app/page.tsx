@@ -86,6 +86,7 @@ export default function Home() {
   const [isPaid, setIsPaid] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  const [telegramChannelSelected, setTelegramChannelSelected] = useState(true);
 
   useEffect(() => {
     const init = async () => {
@@ -214,33 +215,39 @@ export default function Home() {
   return (
     <div className="mx-auto max-w-lg px-6 py-12">
       <div className="mb-8 text-center">
-        <h1 className="text-2xl font-bold">Deploy Openclaw in one click.</h1>
+        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+          Deploy Openclaw in one click.
+        </h1>
       </div>
 
       <div className="glass-card rounded-2xl p-6">
         {!user ? (
           <>
-            <p className="mb-4 text-sm font-medium text-foreground">
-              Which channel do you want to use?
+            <p className="mb-4 text-base font-medium text-foreground sm:text-lg">
+              Which channel do you want to use for sending messages?
             </p>
             <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
-              <div className="inline-flex items-center gap-3 rounded-xl border-2 border-primary bg-primary/10 px-4 py-3 text-sm font-medium ring-2 ring-primary/30">
+              <button
+                type="button"
+                onClick={() => setTelegramChannelSelected(true)}
+                className={`inline-flex min-w-[7rem] flex-col items-center gap-2 rounded-2xl border-2 bg-card px-5 py-4 text-sm font-medium shadow-sm transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:shadow-sm ${
+                  telegramChannelSelected
+                    ? "border-[#FF5F1F] ring-2 ring-[#FF5F1F]/50 shadow-[0_0_20px_rgba(255,95,31,0.45)]"
+                    : "border-border ring-0 hover:border-[#FF5F1F]/50 hover:ring-2 hover:ring-[#FF5F1F]/30 hover:shadow-[0_0_15px_rgba(255,95,31,0.35)]"
+                }`}
+              >
                 <TelegramIcon />
                 <span>Telegram</span>
-              </div>
-              <div className="inline-flex cursor-not-allowed items-center gap-3 rounded-xl border-2 border-border bg-muted/50 px-4 py-3 text-sm font-medium text-muted-foreground opacity-75">
-                <WhatsAppIcon />
-                <span>WhatsApp</span>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  Coming soon
-                </span>
-              </div>
-              <div className="inline-flex cursor-not-allowed items-center gap-3 rounded-xl border-2 border-border bg-muted/50 px-4 py-3 text-sm font-medium text-muted-foreground opacity-75">
+              </button>
+              <div className="inline-flex min-w-[7rem] flex-col cursor-not-allowed items-center gap-2 rounded-2xl border-2 border-border bg-muted/50 px-5 py-4 text-center text-sm font-medium text-muted-foreground opacity-75">
                 <DiscordIcon />
                 <span>Discord</span>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  Coming soon
-                </span>
+                <span className="text-xs text-muted-foreground">Coming soon</span>
+              </div>
+              <div className="inline-flex min-w-[7rem] flex-col cursor-not-allowed items-center gap-2 rounded-2xl border-2 border-border bg-muted/50 px-5 py-4 text-center text-sm font-medium text-muted-foreground opacity-75">
+                <WhatsAppIcon />
+                <span>WhatsApp</span>
+                <span className="text-xs text-muted-foreground">Coming soon</span>
               </div>
             </div>
             <Button
