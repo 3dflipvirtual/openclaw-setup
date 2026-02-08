@@ -11,42 +11,78 @@ const AUTH_MESSAGE_TYPE = "supabase-auth";
 function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [status, setStatus] = useState<"loading" | "done" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "done" | "error" | "close-manually">("loading");
 
   useEffect(() => {
-    const isOpener = typeof window !== "undefined" && window.opener != null;
+    // Check if this is a popup - window.opener can be null after cross-origin redirects
+    // We also check if this window was opened as a popup by checking window.name
+    const hasOpener = typeof window !== "undefined" && window.opener != null;
+    const isPopup = typeof window !== "undefined" && (
+      hasOpener ||
+      window.name === "google-signin" ||
+      window.opener !== null
+    );
     const origin = typeof window !== "undefined" ? window.location.origin : "";
 
-    async function sendSessionToOpener() {
+    async function handleAuthCallback() {
       const code = searchParams.get("code");
 
-      // If we have a code (PKCE), send it to opener so it can exchange (opener has code_verifier)
-      if (code && isOpener) {
+      // POPUP FLOW: We have a code and this appears to be a popup window
+      if (code && hasOpener) {
         try {
+          // Send the code to the opener window for exchange (it has the code_verifier)
           window.opener.postMessage(
             { type: AUTH_MESSAGE_TYPE, code },
             origin
           );
           setStatus("done");
-          await new Promise((r) => setTimeout(r, 300));
+          // Small delay to ensure message is received
+          await new Promise((r) => setTimeout(r, 500));
           window.close();
-        } catch {
+          // If window.close() didn't work, show manual close message
+          await new Promise((r) => setTimeout(r, 200));
+          setStatus("close-manually");
+        } catch (err) {
+          console.error("Failed to send auth message to opener:", err);
           setStatus("error");
         }
         return;
       }
 
-      if (code && !isOpener) {
+      // POPUP WITHOUT OPENER: This is likely a popup but lost window.opener reference
+      // Exchange the code ourselves and try to communicate back
+      if (code && isPopup && !hasOpener) {
+        try {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            console.error("Code exchange failed:", error);
+            setStatus("error");
+            return;
+          }
+          // Session is now established - tell user to close this popup
+          setStatus("close-manually");
+        } catch (err) {
+          console.error("Auth callback error:", err);
+          setStatus("error");
+        }
+        return;
+      }
+
+      // REDIRECT FLOW: Not a popup, handle normally
+      if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
+          console.error("Code exchange failed in redirect flow:", error);
           setStatus("error");
-          router.replace("/");
+          setTimeout(() => router.replace("/"), 2000);
           return;
         }
-      } else if (!code) {
-        // Hash-based (implicit) flow: give client time to parse hash
-        await new Promise((r) => setTimeout(r, 150));
+        router.replace("/");
+        return;
       }
+
+      // No code - might be implicit/hash-based flow
+      await new Promise((r) => setTimeout(r, 150));
 
       const {
         data: { session },
@@ -55,13 +91,14 @@ function AuthCallbackContent() {
 
       if (error || !session) {
         setStatus("error");
-        if (!isOpener) {
-          router.replace("/");
+        if (!isPopup) {
+          setTimeout(() => router.replace("/"), 2000);
         }
         return;
       }
 
-      if (isOpener) {
+      // We have a session
+      if (hasOpener) {
         try {
           window.opener.postMessage(
             {
@@ -72,17 +109,23 @@ function AuthCallbackContent() {
             origin
           );
           setStatus("done");
-          await new Promise((r) => setTimeout(r, 300));
+          await new Promise((r) => setTimeout(r, 500));
           window.close();
-        } catch {
-          setStatus("error");
+          await new Promise((r) => setTimeout(r, 200));
+          setStatus("close-manually");
+        } catch (err) {
+          console.error("Failed to send session to opener:", err);
+          setStatus("close-manually");
         }
+      } else if (isPopup) {
+        // Popup but no opener - session is set, ask user to close
+        setStatus("close-manually");
       } else {
         router.replace("/");
       }
     }
 
-    sendSessionToOpener();
+    handleAuthCallback();
   }, [router, searchParams]);
 
   return (
@@ -98,6 +141,12 @@ function AuthCallbackContent() {
       )}
       {status === "done" && (
         <p className="text-sm text-muted">Signed in. Closing…</p>
+      )}
+      {status === "close-manually" && (
+        <div className="text-center space-y-2">
+          <p className="text-sm font-medium text-emerald-600">✓ Signed in successfully!</p>
+          <p className="text-sm text-muted">You can close this window and refresh the original page.</p>
+        </div>
       )}
     </div>
   );

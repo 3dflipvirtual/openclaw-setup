@@ -167,10 +167,38 @@ export default function Home() {
       `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
     );
 
-    popupCheckInterval = setInterval(() => {
+    popupCheckInterval = setInterval(async () => {
       if (popup?.closed) {
         if (popupCheckInterval) clearInterval(popupCheckInterval);
         window.removeEventListener("message", handleMessage);
+
+        // Popup closed - check if we have a session now
+        // This handles the case where the popup lost its opener reference
+        // and exchanged the code itself but couldn't send message back
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            const { data: userData } = await supabase.auth.getUser();
+            setUser(userData.user ? { id: userData.user.id } : null);
+            if (userData.user) {
+              const [pr, ls] = await Promise.all([
+                fetch("/api/profile"),
+                fetch("/api/telegram/link-status"),
+              ]);
+              if (pr.ok) {
+                const p = await pr.json();
+                setIsPaid(Boolean(p?.paid));
+              }
+              if (ls.ok) {
+                const l = await ls.json();
+                setTelegramLinked(Boolean(l?.verified));
+                if (l?.code) setTelegramCode(l.code);
+              }
+            }
+          }
+        } catch {
+          // Ignore errors - user can refresh if needed
+        }
         setSigningIn(false);
       }
     }, 300);
@@ -315,75 +343,75 @@ export default function Home() {
                 </span>
                 <ChevronDown className={`h-4 w-4 transition ${telegramOpen ? "rotate-180" : ""}`} />
               </button>
-            {telegramOpen && (
-              <div className="mt-2 space-y-3 rounded-xl border border-border/60 bg-background/60 p-4">
-                <input
-                  type="password"
-                  placeholder="Bot token"
-                  value={telegramToken}
-                  onChange={(e) => {
-                    setTelegramToken(e.target.value);
-                    setTelegramError(null);
-                  }}
-                  className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm"
-                />
-                <Button size="sm" onClick={connectBot} disabled={telegramConnecting}>
-                  {telegramConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
+              {telegramOpen && (
+                <div className="mt-2 space-y-3 rounded-xl border border-border/60 bg-background/60 p-4">
+                  <input
+                    type="password"
+                    placeholder="Bot token"
+                    value={telegramToken}
+                    onChange={(e) => {
+                      setTelegramToken(e.target.value);
+                      setTelegramError(null);
+                    }}
+                    className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm"
+                  />
+                  <Button size="sm" onClick={connectBot} disabled={telegramConnecting}>
+                    {telegramConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Connect"}
+                  </Button>
+                  {telegramError && (
+                    <p className="text-xs text-red-600">{telegramError}</p>
+                  )}
+                  {telegramCode && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted">Send this to your bot:</p>
+                      <div className="rounded-lg border border-border/60 bg-background px-3 py-2 text-center font-mono text-sm">
+                        {telegramCode}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={getCode} disabled={telegramChecking}>
+                          {telegramChecking ? "..." : "New code"}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={checkLinked} disabled={telegramChecking}>
+                          {telegramChecking ? "..." : "I sent it"}
+                        </Button>
+                      </div>
+                      {telegramLinked && (
+                        <p className="flex items-center gap-1 text-xs text-emerald-600">
+                          <CheckCircle2 className="h-3 w-3" /> Linked
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {telegramLinked && (
+              <div className="space-y-2">
+                <Button
+                  size="lg"
+                  className="w-full"
+                  onClick={deploy}
+                  disabled={deploying || deployDone}
+                >
+                  {deploying ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : deployDone ? (
+                    "Done"
+                  ) : isPaid ? (
+                    "Deploy"
+                  ) : (
+                    "Pay & deploy"
+                  )}
                 </Button>
-                {telegramError && (
-                  <p className="text-xs text-red-600">{telegramError}</p>
-                )}
-                {telegramCode && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted">Send this to your bot:</p>
-                    <div className="rounded-lg border border-border/60 bg-background px-3 py-2 text-center font-mono text-sm">
-                      {telegramCode}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={getCode} disabled={telegramChecking}>
-                        {telegramChecking ? "..." : "New code"}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={checkLinked} disabled={telegramChecking}>
-                        {telegramChecking ? "..." : "I sent it"}
-                      </Button>
-                    </div>
-                    {telegramLinked && (
-                      <p className="flex items-center gap-1 text-xs text-emerald-600">
-                        <CheckCircle2 className="h-3 w-3" /> Linked
-                      </p>
-                    )}
-                  </div>
+                {deployError && <p className="text-center text-xs text-red-600">{deployError}</p>}
+                {deployDone && (
+                  <p className="flex items-center justify-center gap-1 text-sm text-emerald-600">
+                    <CheckCircle2 className="h-4 w-4" /> Live. Message your bot.
+                  </p>
                 )}
               </div>
             )}
-          </div>
-
-          {telegramLinked && (
-            <div className="space-y-2">
-              <Button
-                size="lg"
-                className="w-full"
-                onClick={deploy}
-                disabled={deploying || deployDone}
-              >
-                {deploying ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : deployDone ? (
-                  "Done"
-                ) : isPaid ? (
-                  "Deploy"
-                ) : (
-                  "Pay & deploy"
-                )}
-              </Button>
-              {deployError && <p className="text-center text-xs text-red-600">{deployError}</p>}
-              {deployDone && (
-                <p className="flex items-center justify-center gap-1 text-sm text-emerald-600">
-                  <CheckCircle2 className="h-4 w-4" /> Live. Message your bot.
-                </p>
-              )}
-            </div>
-          )}
 
             <p className="mt-6 text-center">
               <button type="button" onClick={signOut} className="text-xs text-muted underline hover:text-foreground">
