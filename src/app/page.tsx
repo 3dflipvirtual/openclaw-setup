@@ -121,7 +121,11 @@ export default function Home() {
     setSignInError(null);
     setSigningIn(true);
     const origin = window.location.origin;
-    const redirectTo = `${origin}/auth/callback`;
+    const channelId = crypto.randomUUID();
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem("supabase-auth-channel", channelId);
+    }
+    const redirectTo = `${origin}/auth/callback?auth_channel=${channelId}`;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -159,9 +163,10 @@ export default function Home() {
         return false;
       }
     };
-    const handleMessage = async (event: MessageEvent) => {
-      if (!isSameSite(event.origin) || event.data?.type !== "supabase-auth") return;
+    const applyAuthResult = async (payload: { code?: string; access_token?: string; refresh_token?: string }) => {
       window.removeEventListener("message", handleMessage);
+      bcChannel?.close();
+      if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("supabase-auth-channel");
       if (popupCheckInterval) clearInterval(popupCheckInterval);
       try {
         if (typeof popup?.close === "function") popup.close();
@@ -169,7 +174,7 @@ export default function Home() {
         // ignore
       }
       try {
-        const { code, access_token, refresh_token } = event.data;
+        const { code, access_token, refresh_token } = payload;
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw new Error(error.message);
@@ -204,6 +209,23 @@ export default function Home() {
       setSigningIn(false);
     };
 
+    const handleMessage = async (event: MessageEvent) => {
+      if (!isSameSite(event.origin) || event.data?.type !== "supabase-auth") return;
+      await applyAuthResult(event.data);
+    };
+
+    let bcChannel: BroadcastChannel | null = null;
+    const bcHandler = async (event: MessageEvent<{ type: string; code?: string; access_token?: string; refresh_token?: string }>) => {
+      if (event.data?.type !== "supabase-auth") return;
+      await applyAuthResult(event.data);
+    };
+    try {
+      bcChannel = new BroadcastChannel(`supabase-auth-${channelId}`);
+      bcChannel.onmessage = bcHandler;
+    } catch {
+      // BroadcastChannel not supported
+    }
+
     window.addEventListener("message", handleMessage);
 
     const width = 500;
@@ -222,6 +244,7 @@ export default function Home() {
         if (typeof popup?.closed === "undefined" || popup.closed) {
           if (popupCheckInterval) clearInterval(popupCheckInterval);
           window.removeEventListener("message", handleMessage);
+          bcChannel?.close();
 
           // Popup closed (or unreachable) - check if we have a session now
           try {

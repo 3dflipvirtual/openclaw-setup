@@ -45,21 +45,49 @@ function AuthCallbackContent() {
         return;
       }
 
-      // POPUP WITHOUT OPENER: This is likely a popup but lost window.opener reference
-      // Exchange the code ourselves and try to communicate back
+      // POPUP WITHOUT OPENER: Cross-origin redirects can clear window.opener.
+      // Use BroadcastChannel to send auth result to opener, then close.
       if (code && isPopup && !hasOpener) {
-        try {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) {
-            console.error("Code exchange failed:", error);
+        const authChannel = searchParams.get("auth_channel");
+        if (authChannel && typeof BroadcastChannel !== "undefined") {
+          try {
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) {
+              console.error("Code exchange failed:", error);
+              setStatus("error");
+              return;
+            }
+            const channel = new BroadcastChannel(`supabase-auth-${authChannel}`);
+            if (data.session) {
+              channel.postMessage({
+                type: AUTH_MESSAGE_TYPE,
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+              });
+            } else {
+              channel.postMessage({ type: AUTH_MESSAGE_TYPE, code });
+            }
+            channel.close();
+            setStatus("done");
+            window.close();
+            setTimeout(() => setStatus("close-manually"), 500);
+          } catch (err) {
+            console.error("Auth callback error:", err);
             setStatus("error");
-            return;
           }
-          // Session is now established - tell user to close this popup
-          setStatus("close-manually");
-        } catch (err) {
-          console.error("Auth callback error:", err);
-          setStatus("error");
+        } else {
+          try {
+            const { error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) {
+              console.error("Code exchange failed:", error);
+              setStatus("error");
+              return;
+            }
+            setStatus("close-manually");
+          } catch (err) {
+            console.error("Auth callback error:", err);
+            setStatus("error");
+          }
         }
         return;
       }
