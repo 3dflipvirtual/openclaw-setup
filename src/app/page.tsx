@@ -61,7 +61,26 @@ export default function Home() {
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
 
+  // If OAuth redirected to the home page in a popup (e.g. Supabase used Site URL), send to callback
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isPopup = window.opener != null || window.name === "google-signin";
+    const hasAuthInUrl =
+      window.location.search?.includes("code=") || (window.location.hash?.length ?? 0) > 1;
+    if (isPopup && hasAuthInUrl) {
+      const to = `/auth/callback${window.location.search}${window.location.hash}`;
+      router.replace(to);
+      return;
+    }
+  }, [router]);
+
+  useEffect(() => {
+    const isPopupWithAuth =
+      typeof window !== "undefined" &&
+      (window.opener != null || window.name === "google-signin") &&
+      (window.location.search?.includes("code=") || (window.location.hash?.length ?? 0) > 1);
+    if (isPopupWithAuth) return; // redirect effect will send to /auth/callback; skip init
+
     const init = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user ? { id: data.user.id } : null);
@@ -149,8 +168,10 @@ export default function Home() {
             if (l?.code) setTelegramCode(l.code);
           }
         }
-      } catch {
-        setSignInError("Session could not be applied");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : typeof err === "string" ? err : "Session could not be applied";
+        setSignInError(message);
       }
       setSigningIn(false);
     };
