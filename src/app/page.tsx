@@ -119,7 +119,7 @@ export default function Home() {
     const handleMessage = async (event: MessageEvent) => {
       if (!isSameSite(event.origin) || event.data?.type !== "supabase-auth") return;
       window.removeEventListener("message", handleMessage);
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (popupCheckInterval) clearInterval(popupCheckInterval);
       try {
         const { code, access_token, refresh_token } = event.data;
         if (code) {
