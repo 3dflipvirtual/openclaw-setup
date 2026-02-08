@@ -172,7 +172,7 @@ export default function ScrollSequencer({
             <Halo />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/tree.svg"
+              src="/tree.png"
               alt=""
               className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3/4 opacity-40 mix-blend-multiply pointer-events-none"
             />
