@@ -20,9 +20,48 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://open-clawbot.com";
+
 export const metadata: Metadata = {
-  title: "OpenClaw",
-  description: "Connect your Telegram bot and deploy your AI agent.",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "Deploy Openclaw in one click.",
+    template: "%s | Open-clawbot.com",
+  },
+  description: "Deploy Openclaw in one click.",
+  keywords: [
+    "OpenClaw",
+    "Telegram bot",
+    "AI agent",
+    "deploy",
+    "Open-clawbot",
+    "chatbot",
+    "automation",
+  ],
+  authors: [{ name: "Open-clawbot" }],
+  creator: "Open-clawbot",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: siteUrl,
+    siteName: "Open-clawbot.com",
+    title: "Deploy Openclaw in one click.",
+    description: "Deploy Openclaw in one click.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Deploy Openclaw in one click.",
+    description: "Deploy Openclaw in one click.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

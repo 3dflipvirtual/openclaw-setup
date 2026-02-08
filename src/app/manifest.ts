@@ -2,18 +2,18 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "OpenClaw Setup",
-    short_name: "OpenClaw",
-    description: "Deploy your OpenClaw AI agent in minutes.",
+    name: "Open-clawbot.com",
+    short_name: "Open-clawbot",
+    description: "Deploy Openclaw in one click.",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#ff4500",
+    background_color: "#0b0b0e",
+    theme_color: "#FF5F1F",
     icons: [
       {
-        src: "/icon.svg",
+        src: "/favicon.png",
         sizes: "any",
-        type: "image/svg+xml",
+        type: "image/png",
       },
     ],
   };
