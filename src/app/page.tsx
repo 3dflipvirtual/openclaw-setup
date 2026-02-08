@@ -189,38 +189,41 @@ export default function Home() {
     );
 
     popupCheckInterval = setInterval(async () => {
-      if (popup?.closed) {
-        if (popupCheckInterval) clearInterval(popupCheckInterval);
-        window.removeEventListener("message", handleMessage);
+      try {
+        // COOP can block popup.closed; catch so we don't break the interval
+        if (typeof popup?.closed === "undefined" || popup.closed) {
+          if (popupCheckInterval) clearInterval(popupCheckInterval);
+          window.removeEventListener("message", handleMessage);
 
-        // Popup closed - check if we have a session now
-        // This handles the case where the popup lost its opener reference
-        // and exchanged the code itself but couldn't send message back
-        try {
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (sessionData?.session) {
-            const { data: userData } = await supabase.auth.getUser();
-            setUser(userData.user ? { id: userData.user.id } : null);
-            if (userData.user) {
-              const [pr, ls] = await Promise.all([
-                fetch("/api/profile"),
-                fetch("/api/telegram/link-status"),
-              ]);
-              if (pr.ok) {
-                const p = await pr.json();
-                setIsPaid(Boolean(p?.paid));
-              }
-              if (ls.ok) {
-                const l = await ls.json();
-                setTelegramLinked(Boolean(l?.verified));
-                if (l?.code) setTelegramCode(l.code);
+          // Popup closed (or unreachable) - check if we have a session now
+          try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (sessionData?.session) {
+              const { data: userData } = await supabase.auth.getUser();
+              setUser(userData.user ? { id: userData.user.id } : null);
+              if (userData.user) {
+                const [pr, ls] = await Promise.all([
+                  fetch("/api/profile"),
+                  fetch("/api/telegram/link-status"),
+                ]);
+                if (pr.ok) {
+                  const p = await pr.json();
+                  setIsPaid(Boolean(p?.paid));
+                }
+                if (ls.ok) {
+                  const l = await ls.json();
+                  setTelegramLinked(Boolean(l?.verified));
+                  if (l?.code) setTelegramCode(l.code);
+                }
               }
             }
+          } catch {
+            // Ignore - user can refresh if needed
           }
-        } catch {
-          // Ignore errors - user can refresh if needed
+          setSigningIn(false);
         }
-        setSigningIn(false);
+      } catch {
+        // COOP blocked access to popup.closed; ignore, message handler may still work
       }
     }, 300);
   };
