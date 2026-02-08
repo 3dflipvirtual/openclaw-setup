@@ -13,15 +13,13 @@ function setThemeClass(theme: "light" | "dark") {
 export function ThemeToggle() {
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") {
-      return "light";
+      return "dark";
     }
     const stored = window.localStorage.getItem("theme");
     if (stored === "light" || stored === "dark") {
       return stored;
     }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
+    return "dark";
   });
 
   useEffect(() => {

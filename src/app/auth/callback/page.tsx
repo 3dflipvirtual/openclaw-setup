@@ -25,10 +25,7 @@ function AuthCallbackContent() {
         return;
       }
       setStatus("done");
-      window.close();
-      if (!window.closed) {
-        router.replace("/");
-      }
+      router.replace("/");
     }
     handleAuthCallback();
   }, [router, searchParams]);
@@ -45,7 +42,7 @@ function AuthCallbackContent() {
         <p className="text-sm text-red-600">Sign-in failed. You can close this window.</p>
       )}
       {status === "done" && (
-        <p className="text-sm text-muted">Signed in. Closing…</p>
+        <p className="text-sm text-muted">Signed in. Redirecting…</p>
       )}
     </div>
   );

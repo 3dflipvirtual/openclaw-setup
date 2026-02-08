@@ -7,23 +7,23 @@ import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase/client";
 
-function GoogleIcon() {
+function GoogleIconWhite() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden>
       <path
-        fill="#4285F4"
+        fill="white"
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
       />
       <path
-        fill="#34A853"
+        fill="white"
         d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
       />
       <path
-        fill="#FBBC05"
+        fill="white"
         d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
       />
       <path
-        fill="#EA4335"
+        fill="white"
         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
       />
     </svg>
@@ -61,45 +61,7 @@ export default function Home() {
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
 
-  // If OAuth redirected to the home page in a popup (e.g. Supabase used Site URL), send to callback
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const isPopup = window.opener != null || window.name === "google-signin";
-    const hasAuthInUrl =
-      window.location.search?.includes("code=") || (window.location.hash?.length ?? 0) > 1;
-    if (isPopup && hasAuthInUrl) {
-      const to = `/auth/callback${window.location.search}${window.location.hash}`;
-      router.replace(to);
-      return;
-    }
-  }, [router]);
-
-  // Listen for auth state changes (e.g. popup login completes)
-  useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        setUser({ id: session.user.id });
-        fetch("/api/profile")
-          .then((pr) => pr.ok && pr.json())
-          .then((p) => setIsPaid(Boolean(p?.paid)));
-        fetch("/api/telegram/link-status")
-          .then((ls) => ls.ok && ls.json())
-          .then((l) => {
-            setTelegramLinked(Boolean(l?.verified));
-            if (l?.code) setTelegramCode(l.code);
-          });
-      }
-    });
-    return () => listener?.subscription?.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const isPopupWithAuth =
-      typeof window !== "undefined" &&
-      (window.opener != null || window.name === "google-signin") &&
-      (window.location.search?.includes("code=") || (window.location.hash?.length ?? 0) > 1);
-    if (isPopupWithAuth) return;
-
     const init = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user ? { id: data.user.id } : null);
@@ -117,18 +79,6 @@ export default function Home() {
         }
       }
       setLoading(false);
-
-      const isPopup = typeof window !== "undefined" && (window.opener != null || window.name === "google-signin");
-      const hasAuthInUrl =
-        typeof window !== "undefined" &&
-        (window.location.search?.includes("code=") || (window.location.hash?.length ?? 0) > 1);
-      if (isPopup && !data.user && !hasAuthInUrl) {
-        const { data: oauth } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
-        });
-        if (oauth?.url) window.location.href = oauth.url;
-      }
     };
     init();
   }, []);
@@ -136,30 +86,17 @@ export default function Home() {
   const signInGoogle = async () => {
     setSignInError(null);
     setSigningIn(true);
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: window.location.origin,
-        skipBrowserRedirect: true,
-      },
+      options: { redirectTo: `${origin}/auth/callback` },
     });
     if (error) {
       setSignInError(error.message ?? "Sign-in failed");
       setSigningIn(false);
       return;
     }
-    if (!data?.url) {
-      setSignInError("Could not start sign-in");
-      setSigningIn(false);
-      return;
-    }
-    const isInPopup = typeof window !== "undefined" && (window.opener != null || window.name === "google-signin");
-    if (isInPopup) {
-      window.location.href = data.url;
-      return;
-    }
-    window.open(data.url, "google-signin", "width=500,height=600,scrollbars=yes");
-    setSigningIn(false);
+    // Supabase redirects the current window to Google; no popup
   };
 
   const signOut = async () => {
@@ -269,14 +206,14 @@ export default function Home() {
             </div>
             <Button
               size="lg"
-              className="w-full gap-2 bg-foreground text-background hover:bg-foreground/90"
+              className="w-full gap-2 bg-[#FF5F1F] text-white hover:bg-[#FF5F1F]/90"
               onClick={signInGoogle}
               disabled={signingIn}
             >
               {signingIn ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
-                <GoogleIcon />
+                <GoogleIconWhite />
               )}
               {signingIn ? "Signing in…" : "Sign in with Google"}
             </Button>
