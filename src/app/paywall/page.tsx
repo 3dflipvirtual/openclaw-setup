@@ -9,7 +9,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 
 const whopCheckoutUrl =
   process.env.NEXT_PUBLIC_WHOP_CHECKOUT_URL ??
-  "https://whop.com/checkout/openclaw-setup";
+  "https://whop.com/checkout/plan_45JMn0cnZdK2P";
 
 function PaywallContent() {
   const router = useRouter();
@@ -21,6 +21,9 @@ function PaywallContent() {
     <div className="mx-auto flex min-h-[70vh] w-full max-w-4xl items-center justify-center px-6 py-16">
       <div className="glass-card flex w-full flex-col gap-6 rounded-3xl p-8 text-center">
         <h1 className="text-3xl font-bold">Checkout to deploy</h1>
+        <p className="text-muted-foreground">
+          $29.99/month — 1 agent available 24/7, private secure deployment.
+        </p>
         <div className="flex flex-col items-center gap-3">
           <Link
             href={whopCheckoutUrl}
