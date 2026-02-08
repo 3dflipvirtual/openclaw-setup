@@ -21,22 +21,32 @@ export default async function Image() {
       >
         <div
           style={{
-            fontSize: 72,
-            fontWeight: 700,
-            color: "#FF5F1F",
-            letterSpacing: "-0.02em",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 16,
           }}
         >
-          Open-clawbot<span style={{ fontStyle: "italic" }}>.com</span>
-        </div>
-        <div
-          style={{
-            fontSize: 28,
-            color: "#a1a1aa",
-            marginTop: 16,
-          }}
-        >
-          Deploy Openclaw in one click.
+          <div
+            style={{
+              display: "flex",
+              fontSize: 72,
+              fontWeight: 700,
+              color: "#FF5F1F",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Open-clawbot<span style={{ fontStyle: "italic" }}>.com</span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              fontSize: 28,
+              color: "#a1a1aa",
+            }}
+          >
+            Deploy Openclaw in one click.
+          </div>
         </div>
       </div>
     ),
