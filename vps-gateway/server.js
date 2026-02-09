@@ -48,6 +48,15 @@ function requireApiKey(req, res, next) {
   next();
 }
 
+// Health check — no auth required (placed before middleware)
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true,
+    uptime: process.uptime(),
+    agentsDir: AGENTS_DIR,
+  });
+});
+
 app.use("/api", requireApiKey);
 
 /**
@@ -353,16 +362,6 @@ app.post("/api/agents/:userId/restart", async (req, res) => {
   }
 
   res.json({ ok: true, message: "Agent restarted" });
-});
-
-// GET /api/health — gateway health check
-app.get("/api/health", (req, res) => {
-  // Don't require API key for health checks
-  res.json({
-    ok: true,
-    uptime: process.uptime(),
-    agentsDir: AGENTS_DIR,
-  });
 });
 
 app.listen(PORT, "0.0.0.0", () => {
