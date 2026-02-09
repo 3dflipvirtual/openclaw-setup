@@ -71,7 +71,7 @@ export async function POST() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("paid")
+    .select("paid, personality")
     .eq("id", user.id)
     .single();
 
@@ -92,25 +92,22 @@ export async function POST() {
     );
   }
 
-  // Build agent config: Telegram bot token (required for replies) + optional API keys
+  // Get Telegram bot token
   let telegramBotToken: string | undefined;
-  let webhookSecret: string | undefined;
   const { data: link } = await admin
     .from("telegram_links")
-    .select("bot_token_encrypted, webhook_secret")
+    .select("bot_token_encrypted")
     .eq("user_id", user.id)
     .maybeSingle();
   if (link?.bot_token_encrypted) {
     try {
       telegramBotToken = decryptSecret(link.bot_token_encrypted);
     } catch {
-      // continue without token; VPS may still create agent
+      // continue without token
     }
   }
-  if (link?.webhook_secret) {
-    webhookSecret = link.webhook_secret;
-  }
 
+  // Get user's API keys
   const { data: secrets } = await admin
     .from("secrets")
     .select("type, encrypted_value")
@@ -126,9 +123,13 @@ export async function POST() {
     }
   }
 
+  // Generate proper SOUL.md content from chosen personality
+  const soulMd = getSoulForPersonality(profile.personality ?? "default");
+
   const defaultSkills =
     process.env.OPENCLAW_DEFAULT_SKILLS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
 
+  // Send config to VPS — gateway writes openclaw.json + SOUL.md and starts daemon
   const agentConfig = {
     userId: user.id,
     telegramBotToken,
@@ -136,6 +137,7 @@ export async function POST() {
     anthropicApiKey: secretMap.anthropic_api_key,
     minimaxApiKey: secretMap.minimax_api_key ?? process.env.PLATFORM_MINIMAX_API_KEY,
     minimaxBaseUrl: secretMap.minimax_base_url ?? process.env.MINIMAX_BASE_URL,
+    soulMd,
     skills: defaultSkills,
   };
 
@@ -148,16 +150,7 @@ export async function POST() {
     );
   }
 
-  // Set Telegram webhook to VPS so this bot's updates go to the always-on server (URL includes secret for per-user lookup)
-  if (telegramBotToken && webhookSecret && process.env.OPENCLAW_VPS_URL) {
-    const hookUrl = `${process.env.OPENCLAW_VPS_URL}/api/telegram-hook?secret=${encodeURIComponent(webhookSecret)}`;
-    await fetch(`https://api.telegram.org/bot${telegramBotToken}/setWebhook`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: hookUrl }),
-    });
-  }
-
+  // Record deployment
   await supabase.from("deployments").insert({
     user_id: user.id,
     status: "live",
@@ -171,31 +164,11 @@ export async function POST() {
 
   await supabase.from("activity_logs").insert({
     user_id: user.id,
-    message: "Deployed OpenClaw agent on always-on server.",
+    message: "Deployed OpenClaw agent — running as persistent daemon on VPS.",
   });
-
-  // Insert soul for this agent from user's chosen personality (one per user_id + agent_id, do not overwrite)
-  if (telegramBotToken) {
-    const { data: profileRow } = await admin
-      .from("profiles")
-      .select("personality")
-      .eq("id", user.id)
-      .maybeSingle();
-    const soul = getSoulForPersonality(profileRow?.personality ?? "default");
-    await admin
-      .from("agent_soul")
-      .upsert(
-        {
-          user_id: user.id,
-          agent_id: telegramBotToken,
-          soul,
-        },
-        { onConflict: "user_id,agent_id", ignoreDuplicates: true }
-      );
-  }
 
   return NextResponse.json({
     status: "ok",
-    message: "Agent created on server",
+    message: "Agent deployed and running",
   });
 }

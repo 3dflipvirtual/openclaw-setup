@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const { token } = await request.json();
+  const { token } = (await request.json()) as { token?: string };
 
   if (!token || typeof token !== "string") {
     return NextResponse.json(
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   }
 
   const response = await fetch(`https://api.telegram.org/bot${token}/getMe`);
-  const data = await response.json();
+  const data = (await response.json()) as { ok?: boolean; result?: { username?: string; first_name?: string } };
 
   if (!response.ok || !data?.ok) {
     return NextResponse.json(

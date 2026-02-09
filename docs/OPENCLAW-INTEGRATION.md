@@ -1,66 +1,79 @@
-# Using OpenClaw’s mechanism on the VPS
+# OpenClaw Integration Architecture
 
-We build on top of OpenClaw. Using **OpenClaw’s own** mechanisms for actions, multi-step execution, and proactivity is **better and easier** than reimplementing them in the SaaS.
+## Overview
 
-## Why use OpenClaw’s mechanism
+This SaaS is a **hosting and management layer** for OpenClaw. It does NOT reimplement agent capabilities — OpenClaw handles all of that natively.
 
-| Area | Our custom (SaaS) | OpenClaw on VPS |
-|------|-------------------|-----------------|
-| **Actions** | Fixed tools in code (`create_task`, `send_email`, …) | **ClawHub skills** (email, calendar, Slack, etc.) + custom skills; `openclaw skills install` |
-| **Multi-step** | Stored plan + “Step N done” in DB | **ReAct** (think → tool → observe) + optional **lobster** for typed workflows |
-| **Proactivity** | SaaS cron calls MiniMax “anything to say?” → Telegram | **HEARTBEAT** + **cron** + **hooks** in OpenClaw; agent can set its own crons |
+## What the SaaS Does
 
-Benefits of using OpenClaw on the VPS:
+| Concern | How |
+|---------|-----|
+| **Auth** | Supabase (Google OAuth) |
+| **Payment** | Whop |
+| **Onboarding** | Guided wizard: connect Telegram bot, pick personality, enter API keys |
+| **Bot linking** | Telegram webhook for code verification during onboarding |
+| **Deploy** | Sends config to VPS gateway → writes `openclaw.json` + `SOUL.md` → starts daemon |
+| **API key vault** | AES-256-GCM encrypted storage in Supabase `secrets` table |
+| **Status** | Queries VPS for agent status (running, stopped, uptime) |
 
-- One stack: skills, ReAct, heartbeat, and docs (e.g. [docs.clawd.bot](https://docs.clawd.bot)) all align.
-- Less duplicate logic: no need to keep our `agent_tasks` / `agent_workflow` in sync with what the agent does.
-- Richer actions and proactivity: ClawHub + heartbeat/cron/hooks instead of a single cron route.
+## What OpenClaw Does (natively, on the VPS)
 
-## Current architecture
+| Concern | How |
+|---------|-----|
+| **Telegram** | Built-in grammY channel — receives and replies natively |
+| **Memory** | `MEMORY.md` + `memory/YYYY-MM-DD.md` + hybrid vector/BM25 search |
+| **Tools** | 100+ built-in tools (file system, web, browser, email, etc.) |
+| **Skills** | ClawHub marketplace + bundled + workspace custom skills |
+| **Autonomy** | HEARTBEAT (periodic activation), cron, hooks, webhooks |
+| **Reasoning** | ReAct loop (think → tool → observe) |
+| **Browser** | Full Chromium CDP with semantic snapshots |
+| **Personality** | `SOUL.md` — plain Markdown, hot-reloadable |
 
-- **SaaS (this repo)**: Auth, paywall, Telegram link, deploy. Sends agent config (including optional `skills`) to VPS via `POST /api/agents`. Receives Telegram at `POST /api/telegram/webhook` and **forwards** to VPS `POST /api/telegram-hook` when the user has a live deployment.
-- **VPS** (`vps-gateway/server.js`): Stores agent config (including optional `skills`). On `POST /api/telegram-hook`, when `OPENCLAW_INVOKE=1` and `OPENCLAW_CLI_PATH` are set, invokes OpenClaw and sends the agent’s reply to Telegram. On `POST /api/agents`, runs `openclaw skills install <name>` for each skill when OpenClaw is enabled.
-- **In-SaaS fallback**: `api/telegram-hook` and `api/cron/proactive` remain for when the VPS is not used or not deployed.
+## Architecture
 
-## Target: OpenClaw on the VPS
+```
+┌─────────────────────────────────┐
+│  SaaS (Next.js on Vercel)       │
+│  - Auth, payment, onboarding    │
+│  - Personality picker           │
+│  - API key vault                │
+│  - Deploy button                │
+│  - Status dashboard             │
+└──────────┬──────────────────────┘
+           │ HTTPS (Bearer token auth)
+           ▼
+┌─────────────────────────────────┐
+│  VPS Gateway (Express on Oracle)│
+│  - POST /api/agents             │
+│  - Writes openclaw.json         │
+│  - Writes SOUL.md               │
+│  - Manages PM2 processes        │
+└──────────┬──────────────────────┘
+           │ PM2 start/stop
+           ▼
+┌─────────────────────────────────┐
+│  OpenClaw Daemon (per user)     │
+│  - Telegram via grammY          │
+│  - Memory, tools, skills        │
+│  - HEARTBEAT + cron             │
+│  - Browser control              │
+│  - ReAct reasoning loop         │
+└─────────────────────────────────┘
+```
 
-1. **Message handling**  
-   When the VPS receives `POST /api/telegram-hook` with `{ userId, chatId, text }`:
-   - Load agent config for `userId` (bot token, API keys).
-   - Run OpenClaw so it processes this message and replies to the user (e.g. `openclaw agent` with the right agent/channel/target so the reply goes to Telegram `chatId`).  
-   See [OpenClaw CLI agent](https://docs.clawd.bot/cli/agent) and [OpenClaw message](https://docs.clawd.bot/cli/message) (e.g. `openclaw message send --channel telegram --target <chatId> --message "..."` for outbound).
+## Deploy Flow
 
-2. **Skills (actions beyond browsing)**  
-   - On deploy (or first use), ensure the VPS has the desired skills installed (e.g. `openclaw skills install <name>` from ClawHub).  
-   - Optionally: SaaS sends a list of skill names in agent config; VPS runs `openclaw skills install` for that agent or a shared env.
+1. User completes onboarding (connects Telegram bot, picks personality, enters API keys)
+2. User clicks Deploy
+3. SaaS calls `POST /api/agents` on VPS with: `userId`, `telegramBotToken`, API keys, `soulMd`, `skills`
+4. VPS gateway creates workspace at `~/.openclaw-agents/<userId>/`
+5. Writes `openclaw.json` (Telegram channel + LLM providers + tools)
+6. Writes `SOUL.md` (personality from preset or custom)
+7. Starts OpenClaw via PM2
+8. OpenClaw takes over — handles all Telegram communication, memory, tools, autonomy
 
-3. **Multi-step**  
-   - No extra work in our code: OpenClaw’s ReAct loop handles planning and chaining.  
-   - Optionally use [lobster](https://docs.openclaw.ai/tools/lobster) for typed workflows and approval gates.
+## Key Design Principle
 
-4. **Proactivity**  
-   - Use OpenClaw’s **HEARTBEAT** (and **cron** / **hooks**) on the VPS instead of (or in addition to) the SaaS cron.  
-   - [HEARTBEAT template](https://docs.clawd.bot/reference/templates/HEARTBEAT): add tasks so the agent checks things periodically.  
-   - Then you can **deprecate or keep** `GET/POST /api/cron/proactive` as a fallback for users without a deployed VPS.
+**The SaaS is a thin management layer. OpenClaw is the orchestra.**
 
-## Implementation status
-
-1. **VPS gateway** — **Done.**  
-   Implement the TODO in `vps-gateway/server.js`: on `POST /api/telegram-hook`, invoke OpenClaw (CLI or Gateway API) so the agent runs one turn for `userId` with `text` and replies to Telegram `chatId` (using the stored bot token).  
-   This may require:
-   - Writing a small runner that sets env (e.g. `TELEGRAM_BOT_TOKEN`, `OPENAI_API_KEY`) from the agent config and calls `openclaw agent ...` (or equivalent), then sends the agent’s reply via `openclaw message send --channel telegram ...`.
-   - Or running OpenClaw Gateway on the VPS and sending an RPC/HTTP request to run the agent and get the reply, then sending that reply with `openclaw message send`.
-
-2. **Deploy payload**  
-   SaaS sends optional `skills: string[]` in agent config (from `OPENCLAW_DEFAULT_SKILLS` env or future UI). VPS stores them and runs `openclaw skills install <name>` for each when OpenClaw is enabled.
-
-3. **Proactivity** — **VPS-side.**  
-   On the VPS, configure OpenClaw with HEARTBEAT (and cron/hooks as needed). Optionally, keep the SaaS proactive cron only for “no VPS” or “proactive-only” tiers.
-
-4. **Fallback**  
-   Keep the SaaS `telegram-hook` and `cron/proactive` routes as a **fallback** when `OPENCLAW_VPS_URL` is not set or the user has no live deployment, so the product still works without a VPS.
-
-## Summary
-
-- **Yes:** implementing OpenClaw’s mechanism on the VPS (skills, ReAct, heartbeat/cron/hooks) is **easier and better** than reimplementing equivalent behavior only in the SaaS.
-- **Next step:** implement the VPS gateway’s “hand off to OpenClaw” for `POST /api/telegram-hook`, then add skills and HEARTBEAT on the VPS; keep the current SaaS logic as a fallback when the VPS is not in use.
+We don't reimplement memory, tools, browser control, multi-step reasoning, or proactivity. OpenClaw does all of that better than we ever could. The SaaS provides what OpenClaw can't: multi-tenant auth, payment, one-click deploy, and a friendly onboarding experience for non-technical users.

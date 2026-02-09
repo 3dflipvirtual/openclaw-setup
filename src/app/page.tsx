@@ -104,13 +104,13 @@ function HomeContent() {
       if (data.user) {
         const pr = await fetch("/api/profile");
         if (pr.ok) {
-          const p = await pr.json();
+          const p = (await pr.json()) as { paid?: boolean; personalitySelected?: boolean };
           setIsPaid(Boolean(p?.paid));
           setPersonalitySelected(Boolean(p?.personalitySelected));
         }
         const ls = await fetch("/api/telegram/link-status");
         if (ls.ok) {
-          const l = await ls.json();
+          const l = (await ls.json()) as { verified?: boolean; code?: string };
           setTelegramLinked(Boolean(l?.verified));
           if (l?.code) setTelegramCode(l.code);
         }
@@ -126,7 +126,7 @@ function HomeContent() {
     const t = setTimeout(async () => {
       const pr = await fetch("/api/profile");
       if (pr.ok) {
-        const p = await pr.json();
+        const p = (await pr.json()) as { paid?: boolean };
         setIsPaid(Boolean(p?.paid));
       }
       router.replace("/", { scroll: false });
@@ -185,7 +185,7 @@ function HomeContent() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token }),
     });
-    const data = await res.json();
+    const data = (await res.json()) as { error?: string; code?: string };
     setTelegramConnecting(false);
     if (!res.ok) {
       setTelegramError(data?.error ?? "Failed");
@@ -198,7 +198,7 @@ function HomeContent() {
   const getCode = async () => {
     setTelegramChecking(true);
     const res = await fetch("/api/telegram/link-code", { method: "POST" });
-    const data = await res.json();
+    const data = (await res.json()) as { code?: string; verified?: boolean };
     setTelegramChecking(false);
     if (res.ok) {
       setTelegramCode(data?.code ?? null);
@@ -209,7 +209,7 @@ function HomeContent() {
   const checkLinked = async () => {
     setTelegramChecking(true);
     const res = await fetch("/api/telegram/link-status");
-    const data = await res.json();
+    const data = (await res.json()) as { verified?: boolean };
     setTelegramChecking(false);
     if (!res.ok) return;
     const verified = Boolean(data?.verified);
@@ -233,7 +233,7 @@ function HomeContent() {
       return;
     }
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
       setDeployError(data?.error ?? "Failed");
       setDeploying(false);
       return;

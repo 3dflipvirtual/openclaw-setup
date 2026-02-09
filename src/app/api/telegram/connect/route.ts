@@ -51,7 +51,7 @@ export async function POST(request: Request) {
   }
 
   const meRes = await fetch(`https://api.telegram.org/bot${token}/getMe`);
-  const meData = await meRes.json();
+  const meData = (await meRes.json()) as { ok?: boolean; result?: { username?: string } };
 
   if (!meRes.ok || !meData?.ok) {
     return NextResponse.json(
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
   const setWebhookRes = await fetch(
     `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`
   );
-  const setWebhookData = await setWebhookRes.json();
+  const setWebhookData = (await setWebhookRes.json()) as { ok?: boolean; description?: string };
 
   if (!setWebhookRes.ok || !setWebhookData?.ok) {
     return NextResponse.json(

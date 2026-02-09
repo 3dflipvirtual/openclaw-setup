@@ -1,6 +1,8 @@
 /**
- * Client for the OpenClaw VPS API (always-on Oracle Cloud VM).
- * The VPS exposes agent create/delete/configure and receives forwarded Telegram updates.
+ * Client for the OpenClaw VPS Management Gateway.
+ * The VPS gateway manages OpenClaw daemon lifecycle per user:
+ * writes openclaw.json + SOUL.md, starts/stops PM2 processes.
+ * OpenClaw handles Telegram natively — no message forwarding needed.
  */
 
 const VPS_URL = process.env.OPENCLAW_VPS_URL ?? "";
@@ -13,20 +15,27 @@ export function isVpsConfigured(): boolean {
 export type AgentConfig = {
   userId: string;
   telegramBotToken?: string;
-  /** Optional: API keys and settings the VPS may use for this agent */
   openaiApiKey?: string;
   anthropicApiKey?: string;
   minimaxApiKey?: string;
   minimaxBaseUrl?: string;
-  /** Optional: ClawHub skill names to install on the VPS (e.g. ['email', 'calendar']) */
+  /** SOUL.md content — written to the agent's workspace */
+  soulMd?: string;
+  /** ClawHub skill names to install (e.g. ['email', 'calendar']) */
   skills?: string[];
-  [key: string]: string | undefined;
+};
+
+type VpsResult = {
+  ok: boolean;
+  status?: number;
+  data?: unknown;
+  error?: string;
 };
 
 async function vpsFetch(
   path: string,
   options: { method: string; body?: object }
-): Promise<{ ok: boolean; status: number; data?: unknown; error?: string }> {
+): Promise<VpsResult> {
   const base = VPS_URL.replace(/\/$/, "");
   const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
   const res = await fetch(url, {
@@ -47,62 +56,42 @@ async function vpsFetch(
 }
 
 /**
- * Create or update (configure) an agent on the VPS.
- * Idempotent: same userId overwrites existing config.
+ * Create or update an agent on the VPS.
+ * Writes openclaw.json + SOUL.md and starts the OpenClaw daemon.
  */
-export async function createOrConfigureAgent(config: AgentConfig): Promise<{
-  ok: boolean;
-  error?: string;
-  status?: number;
-}> {
+export async function createOrConfigureAgent(config: AgentConfig): Promise<VpsResult> {
   if (!isVpsConfigured()) {
     return { ok: false, error: "OPENCLAW_VPS_URL or OPENCLAW_VPS_API_KEY not set" };
   }
-  const res = await vpsFetch("/api/agents", {
-    method: "POST",
-    body: config,
-  });
-  return {
-    ok: res.ok,
-    error: res.error,
-    status: res.status,
-  };
+  return vpsFetch("/api/agents", { method: "POST", body: config });
 }
 
 /**
- * Delete an agent from the VPS.
+ * Delete an agent from the VPS (stops daemon, keeps data).
  */
-export async function deleteAgent(userId: string): Promise<{
-  ok: boolean;
-  error?: string;
-  status?: number;
-}> {
+export async function deleteAgent(userId: string): Promise<VpsResult> {
   if (!isVpsConfigured()) {
     return { ok: false, error: "OPENCLAW_VPS_URL or OPENCLAW_VPS_API_KEY not set" };
   }
-  const res = await vpsFetch(`/api/agents/${encodeURIComponent(userId)}`, {
-    method: "DELETE",
-  });
-  return { ok: res.ok, error: res.error, status: res.status };
+  return vpsFetch(`/api/agents/${encodeURIComponent(userId)}`, { method: "DELETE" });
 }
 
 /**
- * Forward a Telegram message payload to the VPS so the user's agent can process it.
+ * Get agent status from the VPS (running, stopped, config state).
  */
-/**
- * Forward a Telegram message to the VPS. Uses same Bearer token as other VPS API calls.
- */
-export async function forwardTelegramToVps(payload: {
-  userId: string;
-  chatId: number;
-  text: string;
-}): Promise<{ ok: boolean; status?: number; error?: string }> {
+export async function getAgentStatus(userId: string): Promise<VpsResult> {
   if (!isVpsConfigured()) {
-    return { ok: false, error: "VPS not configured" };
+    return { ok: false, error: "OPENCLAW_VPS_URL or OPENCLAW_VPS_API_KEY not set" };
   }
-  const res = await vpsFetch("/api/telegram-hook", {
-    method: "POST",
-    body: payload,
-  });
-  return { ok: res.ok, status: res.status, error: res.error };
+  return vpsFetch(`/api/agents/${encodeURIComponent(userId)}`, { method: "GET" });
+}
+
+/**
+ * Restart an agent's OpenClaw daemon on the VPS.
+ */
+export async function restartAgent(userId: string): Promise<VpsResult> {
+  if (!isVpsConfigured()) {
+    return { ok: false, error: "OPENCLAW_VPS_URL or OPENCLAW_VPS_API_KEY not set" };
+  }
+  return vpsFetch(`/api/agents/${encodeURIComponent(userId)}/restart`, { method: "POST" });
 }

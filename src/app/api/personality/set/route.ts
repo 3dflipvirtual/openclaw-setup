@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { decryptSecret } from "@/lib/crypto";
+import { createOrConfigureAgent, isVpsConfigured } from "@/lib/openclaw-vps";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { decryptSecret } from "@/lib/crypto";
 
+/**
+ * Set custom soul text for a deployed agent.
+ * Sends the new SOUL.md content to the VPS and restarts the daemon.
+ */
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
   const {
@@ -14,26 +19,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { agent_id?: string; custom_soul_text?: string };
+  let body: { custom_soul_text?: string };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json(
-      { error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const agentId = body?.agent_id;
   const customSoulText = body?.custom_soul_text;
-
-  if (!agentId || typeof agentId !== "string") {
-    return NextResponse.json(
-      { error: "agent_id is required" },
-      { status: 400 }
-    );
-  }
-
   if (customSoulText == null || typeof customSoulText !== "string") {
     return NextResponse.json(
       { error: "custom_soul_text is required and must be a string" },
@@ -41,6 +34,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (!isVpsConfigured()) {
+    return NextResponse.json(
+      { error: "VPS not configured" },
+      { status: 503 }
+    );
+  }
+
+  // Get bot token and API keys to rebuild config
   const admin = createAdminSupabaseClient();
   const { data: link } = await admin
     .from("telegram_links")
@@ -48,50 +49,53 @@ export async function POST(req: NextRequest) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!link?.bot_token_encrypted) {
-    return NextResponse.json(
-      { error: "No Telegram agent linked for this user" },
-      { status: 403 }
-    );
+  let telegramBotToken: string | undefined;
+  if (link?.bot_token_encrypted) {
+    try {
+      telegramBotToken = decryptSecret(link.bot_token_encrypted);
+    } catch {
+      // continue
+    }
   }
 
-  let resolvedAgentId: string;
-  try {
-    resolvedAgentId = decryptSecret(link.bot_token_encrypted);
-  } catch {
-    return NextResponse.json(
-      { error: "Could not resolve agent" },
-      { status: 403 }
-    );
+  const { data: secrets } = await admin
+    .from("secrets")
+    .select("type, encrypted_value")
+    .eq("user_id", user.id);
+  const secretMap: Record<string, string> = {};
+  if (secrets?.length) {
+    for (const s of secrets) {
+      try {
+        secretMap[s.type] = decryptSecret(s.encrypted_value);
+      } catch {
+        // skip
+      }
+    }
   }
 
-  if (resolvedAgentId !== agentId) {
+  // Redeploy with new SOUL.md
+  const result = await createOrConfigureAgent({
+    userId: user.id,
+    telegramBotToken,
+    openaiApiKey: secretMap.openai_api_key,
+    anthropicApiKey: secretMap.anthropic_api_key,
+    minimaxApiKey: secretMap.minimax_api_key ?? process.env.PLATFORM_MINIMAX_API_KEY,
+    minimaxBaseUrl: secretMap.minimax_base_url ?? process.env.MINIMAX_BASE_URL,
+    soulMd: customSoulText,
+  });
+
+  if (!result.ok) {
     return NextResponse.json(
-      { error: "Agent does not belong to this user" },
-      { status: 403 }
-    );
-  }
-
-  const soul = customSoulText;
-
-  const { error: updateError } = await admin
-    .from("agent_soul")
-    .upsert(
-      {
-        user_id: user.id,
-        agent_id: agentId,
-        soul,
-      },
-      { onConflict: "user_id,agent_id" }
-    );
-
-  if (updateError) {
-    console.error("[personality/set] Update failed", updateError);
-    return NextResponse.json(
-      { error: "Failed to save personality" },
+      { error: result.error ?? "Failed to update personality" },
       { status: 500 }
     );
   }
+
+  // Update the personality key to "custom" in profiles
+  await supabase
+    .from("profiles")
+    .update({ personality: "custom" })
+    .eq("id", user.id);
 
   return NextResponse.json({ success: true });
 }
