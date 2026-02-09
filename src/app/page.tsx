@@ -80,6 +80,7 @@ export default function Home() {
   const [telegramCode, setTelegramCode] = useState<string | null>(null);
   const [telegramLinked, setTelegramLinked] = useState(false);
   const [telegramChecking, setTelegramChecking] = useState(false);
+  const [telegramDisconnecting, setTelegramDisconnecting] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [deployDone, setDeployDone] = useState(false);
   const [deployError, setDeployError] = useState<string | null>(null);
@@ -132,6 +133,20 @@ export default function Home() {
     setTelegramLinked(false);
     setTelegramCode(null);
     setDeployDone(false);
+  };
+
+  const disconnectTelegram = async () => {
+    setTelegramDisconnecting(true);
+    try {
+      const res = await fetch("/api/telegram/disconnect", { method: "POST" });
+      if (res.ok) {
+        setTelegramLinked(false);
+        setTelegramCode(null);
+        setTelegramToken("");
+      }
+    } finally {
+      setTelegramDisconnecting(false);
+    }
   };
 
   const connectBot = async () => {
@@ -216,7 +231,7 @@ export default function Home() {
     <div className="mx-auto max-w-2xl px-6 py-12">
       <div className="mb-8 text-center">
         <h1 className="whitespace-nowrap text-4xl font-bold tracking-tight sm:text-5xl">
-          Deploy Openclaw in one click.
+          Deploy Openclaw in seconds.
         </h1>
       </div>
 
@@ -288,6 +303,25 @@ export default function Home() {
                 </span>
                 <ChevronDown className={`h-4 w-4 transition ${telegramOpen ? "rotate-180" : ""}`} />
               </button>
+              {telegramLinked && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-background/60 px-4 py-2">
+                  <span className="flex items-center gap-1 text-xs text-emerald-600">
+                    <CheckCircle2 className="h-3 w-3" /> Linked
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={disconnectTelegram}
+                    disabled={telegramDisconnecting}
+                  >
+                    {telegramDisconnecting ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      "Disconnect"
+                    )}
+                  </Button>
+                </div>
+              )}
               {telegramOpen && (
                 <div className="mt-2 space-y-3 rounded-xl border border-border/60 bg-background/60 p-4">
                   <input

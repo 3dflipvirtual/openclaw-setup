@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Open-clawbot.com",
     short_name: "Open-clawbot",
-    description: "Deploy Openclaw in one click.",
+    description: "Deploy Openclaw in seconds.",
     start_url: "/",
     display: "standalone",
     background_color: "#0b0b0e",

@@ -25,10 +25,10 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://open-clawbot.com";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Deploy Openclaw in one click.",
+    default: "Deploy Openclaw in seconds.",
     template: "%s | Open-clawbot.com",
   },
-  description: "Deploy Openclaw in one click.",
+  description: "Deploy Openclaw in seconds.",
   keywords: [
     "OpenClaw",
     "Telegram bot",
@@ -45,13 +45,13 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: siteUrl,
     siteName: "Open-clawbot.com",
-    title: "Deploy Openclaw in one click.",
-    description: "Deploy Openclaw in one click.",
+    title: "Deploy Openclaw in seconds.",
+    description: "Deploy Openclaw in seconds.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Deploy Openclaw in one click.",
-    description: "Deploy Openclaw in one click.",
+    title: "Deploy Openclaw in seconds.",
+    description: "Deploy Openclaw in seconds.",
   },
   robots: {
     index: true,

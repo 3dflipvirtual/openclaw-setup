@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Deploy Openclaw in one click.";
+export const alt = "Deploy Openclaw in seconds.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -45,7 +45,7 @@ export default async function Image() {
               color: "#a1a1aa",
             }}
           >
-            Deploy Openclaw in one click.
+            Deploy Openclaw in seconds.
           </div>
         </div>
       </div>
