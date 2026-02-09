@@ -71,7 +71,11 @@ function agentDir(userId) {
 /**
  * Build an openclaw.json configuration for a user.
  */
-function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxBaseUrl, anthropicApiKey, openaiApiKey }) {
+function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxBaseUrl, anthropicApiKey, openaiApiKey, usingPlatformKey }) {
+  // Users on the platform key get daily rate limits to control API costs.
+  // Users who bring their own key get unlimited usage.
+  const PLATFORM_DAILY_LIMIT = 50;
+
   const config = {
     $schema: "https://openclaw.ai/schemas/openclaw.json",
     agents: {
@@ -94,8 +98,17 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
     },
     heartbeat: {
       enabled: true,
-      interval: 1800, // 30 minutes
+      // Platform key users: heartbeat every 2 hours to save API credits
+      // Own key users: every 30 minutes for full autonomy
+      interval: usingPlatformKey ? 7200 : 1800,
     },
+    // Rate limits for platform key users
+    ...(usingPlatformKey ? {
+      rateLimit: {
+        maxMessagesPerDay: PLATFORM_DAILY_LIMIT,
+        limitMessage: "You've reached your daily message limit (50/day). Upgrade by adding your own API key for unlimited usage.",
+      },
+    } : {}),
   };
 
   // Configure model providers based on available keys
@@ -250,6 +263,7 @@ app.post("/api/agents", async (req, res) => {
     minimaxBaseUrl,
     soulMd,
     skills,
+    usingPlatformKey,
   } = req.body || {};
 
   if (!userId || typeof userId !== "string") {
@@ -277,6 +291,7 @@ app.post("/api/agents", async (req, res) => {
     minimaxBaseUrl,
     anthropicApiKey,
     openaiApiKey,
+    usingPlatformKey: Boolean(usingPlatformKey),
   });
 
   writeFileSync(join(dir, "openclaw.json"), JSON.stringify(config, null, 2), "utf-8");

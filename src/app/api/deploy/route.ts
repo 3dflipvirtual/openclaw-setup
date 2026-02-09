@@ -129,6 +129,11 @@ export async function POST() {
   const defaultSkills =
     process.env.OPENCLAW_DEFAULT_SKILLS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
 
+  // Determine if user is on the platform key (no own API keys provided)
+  const hasOwnKey = Boolean(
+    secretMap.minimax_api_key || secretMap.anthropic_api_key || secretMap.openai_api_key
+  );
+
   // Send config to VPS — gateway writes openclaw.json + SOUL.md and starts daemon
   const agentConfig = {
     userId: user.id,
@@ -139,6 +144,7 @@ export async function POST() {
     minimaxBaseUrl: secretMap.minimax_base_url ?? process.env.MINIMAX_BASE_URL,
     soulMd,
     skills: defaultSkills,
+    usingPlatformKey: !hasOwnKey,
   };
 
   const result = await createOrConfigureAgent(agentConfig);

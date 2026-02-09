@@ -23,6 +23,8 @@ export type AgentConfig = {
   soulMd?: string;
   /** ClawHub skill names to install (e.g. ['email', 'calendar']) */
   skills?: string[];
+  /** True if user has no own API key — platform key rate limits apply */
+  usingPlatformKey?: boolean;
 };
 
 type VpsResult = {
