@@ -247,20 +247,20 @@ function HomeContent() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-12">
-      <div className="mb-8 text-center">
-        <h1 className="whitespace-nowrap text-4xl font-bold tracking-tight sm:text-5xl">
+    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-12">
+      <div className="mb-6 text-center sm:mb-8">
+        <h1 className="text-3xl font-bold tracking-tight sm:whitespace-nowrap sm:text-5xl">
           Deploy Openclaw in seconds.
         </h1>
       </div>
 
-      <div className="glass-card rounded-2xl p-6">
+      <div className="glass-card rounded-2xl p-4 sm:p-6">
         {!user ? (
           <>
             <p className="mb-4 text-base font-medium text-foreground sm:text-lg">
               Which channel do you want to use for sending messages?
             </p>
-            <div className="mb-6 flex flex-nowrap items-center justify-center gap-3">
+            <div className="mb-6 flex flex-wrap items-center justify-center gap-3 sm:flex-nowrap">
               <button
                 type="button"
                 onClick={() => setTelegramChannelSelected(true)}
