@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { decryptSecret } from "@/lib/crypto";
+import {
+  completeTask,
+  createTask,
+  listTasks,
+  sendEmail,
+} from "@/lib/agent-tools";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { searchAndExtract } from "@/lib/browser";
 
@@ -53,7 +59,7 @@ async function askAI(system: string, messages: AgentMessage[]) {
     },
     body: JSON.stringify({
       model: "MiniMax-M2.1",
-      max_tokens: 200,
+      max_tokens: 400,
       temperature: 0.7,
       system,
       messages,
@@ -322,6 +328,176 @@ async function getSoul(
   return (data?.soul as string) ?? "";
 }
 
+type WorkflowState = {
+  plan_summary: string | null;
+  steps: { title: string; status: string }[];
+  current_step_index: number;
+  status: string;
+} | null;
+
+async function getWorkflow(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  userId: string,
+  agentId: string
+): Promise<WorkflowState> {
+  const { data } = await supabase
+    .from("agent_workflow")
+    .select("plan_summary, steps, current_step_index, status")
+    .eq("user_id", userId)
+    .eq("agent_id", agentId)
+    .maybeSingle();
+
+  if (!data || data.status !== "active") return null;
+  const steps = (data.steps as { title: string; status: string }[]) ?? [];
+  return {
+    plan_summary: data.plan_summary as string | null,
+    steps,
+    current_step_index: (data.current_step_index as number) ?? 0,
+    status: data.status as string,
+  };
+}
+
+async function saveWorkflow(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  userId: string,
+  agentId: string,
+  planSummary: string,
+  steps: { title: string; status: string }[]
+) {
+  await supabase.from("agent_workflow").upsert(
+    {
+      user_id: userId,
+      agent_id: agentId,
+      plan_summary: planSummary,
+      steps,
+      current_step_index: 0,
+      status: "active",
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,agent_id" }
+  );
+}
+
+async function advanceWorkflowStep(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  userId: string,
+  agentId: string
+) {
+  const { data } = await supabase
+    .from("agent_workflow")
+    .select("steps, current_step_index")
+    .eq("user_id", userId)
+    .eq("agent_id", agentId)
+    .maybeSingle();
+
+  if (!data) return;
+  const steps = (data.steps as { title: string; status: string }[]) ?? [];
+  const idx = (data.current_step_index as number) ?? 0;
+  if (idx < steps.length) {
+    steps[idx] = { ...steps[idx], status: "done" };
+    const nextIdx = idx + 1;
+    const status = nextIdx >= steps.length ? "completed" : "active";
+    await supabase
+      .from("agent_workflow")
+      .update({
+        steps,
+        current_step_index: nextIdx,
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId)
+      .eq("agent_id", agentId);
+  }
+}
+
+type ExtractedAction =
+  | { type: "create_task"; title: string; body?: string }
+  | { type: "complete_task"; title_substring: string }
+  | { type: "send_email"; to: string; subject: string; body: string };
+
+async function extractPlanFromReply(
+  reply: string
+): Promise<{ planSummary: string; steps: { title: string; status: string }[] } | null> {
+  const res = await fetch("https://api.minimax.io/anthropic/v1/messages", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.PLATFORM_MINIMAX_API_KEY}`,
+      "Content-Type": "application/json",
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "MiniMax-M2.1",
+      max_tokens: 200,
+      temperature: 0,
+      system:
+        "If the assistant message contains a clear numbered plan (e.g. 1. Do X 2. Do Y), return a JSON object: {\"planSummary\": \"short summary\", \"steps\": [{\"title\": \"Do X\", \"status\": \"pending\"}, {\"title\": \"Do Y\", \"status\": \"pending\"}]}. Otherwise return null.",
+      messages: [{ role: "user", content: reply }],
+    }),
+  });
+
+  const data = (await res.json()) as {
+    content?: Array<{ type: string; text?: string }>;
+  };
+  const raw = data?.content?.find((c) => c.type === "text")?.text?.trim() ?? "";
+  if (!raw || raw.toLowerCase() === "null") return null;
+  try {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}") + 1;
+    if (start === -1 || end <= start) return null;
+    const parsed = JSON.parse(raw.slice(start, end));
+    if (parsed?.planSummary && Array.isArray(parsed?.steps) && parsed.steps.length > 0) {
+      return {
+        planSummary: String(parsed.planSummary),
+        steps: parsed.steps.map((s: { title?: string; status?: string }) => ({
+          title: String(s?.title ?? ""),
+          status: s?.status === "done" ? "done" : "pending",
+        })),
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+async function extractActionsFromReply(reply: string): Promise<ExtractedAction[]> {
+  const res = await fetch("https://api.minimax.io/anthropic/v1/messages", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.PLATFORM_MINIMAX_API_KEY}`,
+      "Content-Type": "application/json",
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "MiniMax-M2.1",
+      max_tokens: 300,
+      temperature: 0,
+      system:
+        "Extract any explicit actions from the assistant message. " +
+        "Return ONLY a JSON array. Each item: {\"type\": \"create_task\", \"title\": \"...\", \"body\": \"...\"} or " +
+        "{\"type\": \"complete_task\", \"title_substring\": \"...\"} or " +
+        "{\"type\": \"send_email\", \"to\": \"...\", \"subject\": \"...\", \"body\": \"...\"}. " +
+        "If no clear action (e.g. creating a task, marking one done, sending email), return [].",
+      messages: [{ role: "user", content: reply }],
+    }),
+  });
+
+  const data = (await res.json()) as {
+    content?: Array<{ type: string; text?: string }>;
+  };
+  const raw =
+    data?.content?.find((c) => c.type === "text")?.text?.trim() ?? "[]";
+  try {
+    const start = raw.indexOf("[");
+    const end = raw.lastIndexOf("]");
+    if (start === -1 || end <= start) return [];
+    const parsed = JSON.parse(raw.slice(start, end + 1));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 async function needsBrowser(userText: string): Promise<boolean> {
   // Fast classification call: should we try real web browsing?
   const res = await fetch("https://api.minimax.io/anthropic/v1/messages", {
@@ -556,6 +732,8 @@ export async function POST(req: NextRequest) {
     }
 
     const soul = await getSoul(admin, link.user_id, agentId);
+    const workflow = await getWorkflow(admin, link.user_id, agentId);
+    const tasks = await listTasks(admin, link.user_id, agentId, 10);
 
     const systemPromptParts = [
       "You are an autonomous AI agent.",
@@ -568,6 +746,13 @@ export async function POST(req: NextRequest) {
       memoryText
         ? `YOU KNOW THIS ABOUT THE USER:\n${memoryText}`
         : "You currently do not know much about the user. Learn about them over time.",
+      tasks.length > 0
+        ? `CURRENT TASKS (you can create_task, complete_task):\n${tasks.map((t) => `- [${t.status}] ${t.title}${t.body ? `: ${t.body.slice(0, 80)}` : ""}`).join("\n")}`
+        : "The user has no tasks yet. You can create tasks when they ask for reminders or todos.",
+      workflow
+        ? `MULTI-STEP PLAN (execute current step, then say when done):\nSummary: ${workflow.plan_summary ?? "—"}\nSteps: ${workflow.steps.map((s, i) => `${i + 1}. [${s.status}] ${s.title}`).join("; ")}\nCurrent step index: ${workflow.current_step_index + 1}. Complete this step and say "Step N done" when finished.`
+        : "You can propose a multi-step plan when the user asks for something complex; we will track it.",
+      "You can take actions: create_task(title, body), complete_task(title_substring), send_email(to, subject, body). We will run them after your reply. Be proactive.",
       "Safety rules for browser control:\n" +
         "- If browser control is enabled: access banking or private accounts only after explicitly asking for permission.\n" +
         "- Never submit passwords or sensitive authentication codes.\n" +
@@ -634,8 +819,64 @@ export async function POST(req: NextRequest) {
     }
   })();
 
+  // Multi-step: if agent proposed a new plan and we have none, save it
+  const workflowBefore = await getWorkflow(admin, link.user_id, agentId);
+  if (!workflowBefore) {
+    try {
+      const plan = await extractPlanFromReply(reply);
+      if (plan && plan.steps.length > 0) {
+        await saveWorkflow(admin, link.user_id, agentId, plan.planSummary, plan.steps);
+      }
+    } catch (err) {
+      console.error("[telegram-hook] extractPlan failed", { userId: link.user_id, error: String(err) });
+    }
+  }
+
+  // Run extracted actions (create_task, complete_task, send_email)
+  let actionResults: string[] = [];
+  try {
+    const actions = await extractActionsFromReply(reply);
+    for (const a of actions) {
+      if (a.type === "create_task") {
+        const r = await createTask(
+          admin,
+          link.user_id,
+          agentId,
+          a.title,
+          a.body
+        );
+        if (r.ok) actionResults.push(r.message);
+      } else if (a.type === "complete_task") {
+        const r = await completeTask(
+          admin,
+          link.user_id,
+          agentId,
+          a.title_substring
+        );
+        if (r.ok) actionResults.push(r.message);
+      } else if (a.type === "send_email") {
+        const r = await sendEmail(a.to, a.subject, a.body);
+        if (r.ok) actionResults.push(r.message);
+      }
+    }
+    // Multi-step: if reply suggests "step N done", advance workflow
+    if (/step\s*\d+\s*(done|complete|finished)/i.test(reply)) {
+      await advanceWorkflowStep(admin, link.user_id, agentId);
+    }
+  } catch (err) {
+    console.error("[telegram-hook] actions failed", { userId: link.user_id, error: String(err) });
+  }
+
   try {
     await sendTelegram(chatId, reply, botToken);
+
+    if (actionResults.length > 0) {
+      await sendTelegram(
+        chatId,
+        "✅ " + actionResults.join(". "),
+        botToken
+      );
+    }
 
     if (justInferredGoal) {
       const confirmation =

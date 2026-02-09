@@ -18,6 +18,8 @@ export type AgentConfig = {
   anthropicApiKey?: string;
   minimaxApiKey?: string;
   minimaxBaseUrl?: string;
+  /** Optional: ClawHub skill names to install on the VPS (e.g. ['email', 'calendar']) */
+  skills?: string[];
   [key: string]: string | undefined;
 };
 

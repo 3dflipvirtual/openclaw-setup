@@ -126,6 +126,9 @@ export async function POST() {
     }
   }
 
+  const defaultSkills =
+    process.env.OPENCLAW_DEFAULT_SKILLS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+
   const agentConfig = {
     userId: user.id,
     telegramBotToken,
@@ -133,6 +136,7 @@ export async function POST() {
     anthropicApiKey: secretMap.anthropic_api_key,
     minimaxApiKey: secretMap.minimax_api_key ?? process.env.PLATFORM_MINIMAX_API_KEY,
     minimaxBaseUrl: secretMap.minimax_base_url ?? process.env.MINIMAX_BASE_URL,
+    skills: defaultSkills,
   };
 
   const result = await createOrConfigureAgent(agentConfig);

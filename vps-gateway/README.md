@@ -2,6 +2,8 @@
 
 Locked-down API server for the always-on OpenClaw VPS. **Only requests that include the API key are accepted** (all others get 401).
 
+When **OpenClaw is installed on the VPS**, set `OPENCLAW_INVOKE=1` and `OPENCLAW_CLI_PATH=openclaw` (or the path to the CLI). Then `POST /api/telegram-hook` will run `openclaw agent --agent <userId> --message "<text>"` and send the agent’s stdout as the Telegram reply. See **docs/OPENCLAW-INTEGRATION.md** in the repo root for the full plan (skills, ReAct, heartbeat).
+
 ## Endpoints
 
 | Method | Path | Description |
