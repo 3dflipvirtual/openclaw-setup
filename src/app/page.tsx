@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { PERSONALITIES } from "@/lib/personalities";
 import { supabase } from "@/lib/supabase/client";
 
 const WHOP_CHECKOUT_URL =
@@ -93,6 +94,8 @@ function HomeContent() {
   const [signingIn, setSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [telegramChannelSelected, setTelegramChannelSelected] = useState(false);
+  const [personalitySelected, setPersonalitySelected] = useState(true);
+  const [savingPersonality, setSavingPersonality] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -103,6 +106,7 @@ function HomeContent() {
         if (pr.ok) {
           const p = await pr.json();
           setIsPaid(Boolean(p?.paid));
+          setPersonalitySelected(Boolean(p?.personalitySelected));
         }
         const ls = await fetch("/api/telegram/link-status");
         if (ls.ok) {
@@ -255,7 +259,41 @@ function HomeContent() {
       </div>
 
       <div className="glass-card rounded-2xl p-4 sm:p-6">
-        {!user ? (
+        {user && !personalitySelected ? (
+          <>
+            <p className="mb-4 text-center text-base font-medium text-foreground sm:text-lg">
+              Choose your agent&apos;s personality
+            </p>
+            <p className="mb-6 text-center text-sm text-muted">
+              Your AI will use this tone in every reply. You can change it later in settings.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {PERSONALITIES.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  disabled={savingPersonality}
+                  className="rounded-xl border-2 border-border bg-card p-4 text-left transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md active:translate-y-0 disabled:opacity-60"
+                  onClick={async () => {
+                    setSavingPersonality(true);
+                    const res = await fetch("/api/onboarding/save", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ type: "personality", value: p.id }),
+                    });
+                    setSavingPersonality(false);
+                    if (res.ok) {
+                      setPersonalitySelected(true);
+                    }
+                  }}
+                >
+                  <div className="font-semibold text-foreground">{p.label}</div>
+                  <div className="mt-1 text-sm text-muted">{p.description}</div>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : !user ? (
           <>
             <p className="mb-4 text-base font-medium text-foreground sm:text-lg">
               Which channel do you want to use for sending messages?

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { decryptSecret } from "@/lib/crypto";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { searchAndExtract } from "@/lib/browser";
 
 const RATE_LIMIT = {
   perChat: { limit: 10, windowSeconds: 60 },
@@ -275,6 +276,88 @@ async function getActiveGoal(
   return (data?.goal as string) ?? null;
 }
 
+async function isBrowserEnabledForAgent(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  userId: string,
+  agentId: string
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("agent_permissions")
+    .select("browser_enabled")
+    .eq("user_id", userId)
+    .eq("agent_id", agentId)
+    .maybeSingle();
+
+  return Boolean(data?.browser_enabled);
+}
+
+async function setBrowserPermission(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  userId: string,
+  agentId: string,
+  enabled: boolean
+) {
+  await supabase.from("agent_permissions").upsert(
+    {
+      user_id: userId,
+      agent_id: agentId,
+      browser_enabled: enabled,
+    },
+    { onConflict: "user_id,agent_id" }
+  );
+}
+
+async function getSoul(
+  supabase: ReturnType<typeof createAdminSupabaseClient>,
+  userId: string,
+  agentId: string
+): Promise<string> {
+  const { data } = await supabase
+    .from("agent_soul")
+    .select("soul")
+    .eq("user_id", userId)
+    .eq("agent_id", agentId)
+    .maybeSingle();
+
+  return (data?.soul as string) ?? "";
+}
+
+async function needsBrowser(userText: string): Promise<boolean> {
+  // Fast classification call: should we try real web browsing?
+  const res = await fetch("https://api.minimax.io/anthropic/v1/messages", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.PLATFORM_MINIMAX_API_KEY}`,
+      "Content-Type": "application/json",
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "MiniMax-M2.1",
+      max_tokens: 5,
+      temperature: 0,
+      system:
+        "You are a classifier. Decide if the user's request clearly **requires live web browsing** (for example, current prices, latest news, or information that strongly depends on the present internet).\n" +
+        "Reply with a single word: YES or NO.",
+      messages: [
+        {
+          role: "user",
+          content: userText,
+        },
+      ],
+    }),
+  });
+
+  const data = (await res.json()) as {
+    content?: Array<{ type: string; text?: string }>;
+  };
+
+  const answer =
+    data?.content?.find((c) => c.type === "text")?.text?.trim().toUpperCase() ??
+    "NO";
+
+  return answer.startsWith("Y");
+}
+
 export async function POST(req: NextRequest) {
   const secret = new URL(req.url).searchParams.get("secret");
   if (!secret) {
@@ -340,6 +423,35 @@ export async function POST(req: NextRequest) {
 
   const agentId = botToken; // each Telegram bot = one autonomous agent
   let justInferredGoal: string | null = null;
+
+  const trimmed = text.trim();
+
+  // Browser permission flow
+  if (trimmed.toLowerCase() === "/browser on") {
+    // Record intent, but keep browser disabled until explicit CONFIRM
+    await setBrowserPermission(admin, link.user_id, agentId, false);
+
+    const warning =
+      "⚠️ Browser Control Enabled Request\n\n" +
+      "This allows the AI to:\n" +
+      "- browse websites\n" +
+      "- click links\n" +
+      "- fill forms\n" +
+      "- navigate pages automatically\n\n" +
+      "Never enable this for sensitive accounts.\n\n" +
+      "Type:\n" +
+      "CONFIRM\n" +
+      "to activate.";
+
+    await sendTelegram(chatId, warning, botToken);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (trimmed === "CONFIRM") {
+    await setBrowserPermission(admin, link.user_id, agentId, true);
+    await sendTelegram(chatId, "✅ Full browser control activated.", botToken);
+    return NextResponse.json({ ok: true });
+  }
 
   // Goal command: "/goal your goal text"
   if (text.startsWith("/goal ")) {
@@ -411,16 +523,62 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Decide if we need live web browsing
+    const globalBrowserEnabled =
+      (process.env.BROWSER_ENABLED ?? "").toLowerCase() === "true";
+
+    let liveBrowserData: string | null = null;
+    if (globalBrowserEnabled && (await needsBrowser(text))) {
+      const enabledForAgent = await isBrowserEnabledForAgent(
+        admin,
+        link.user_id,
+        agentId
+      );
+
+      if (!enabledForAgent) {
+        await sendTelegram(
+          chatId,
+          "Browser control is not enabled. The user must enable it with /browser on.",
+          botToken
+        );
+        return NextResponse.json({ ok: true });
+      }
+
+      try {
+        liveBrowserData = await searchAndExtract(text);
+      } catch (err) {
+        console.error("[telegram-hook] browser search failed", {
+          userId: link.user_id,
+          agentId,
+          error: String(err),
+        });
+      }
+    }
+
+    const soul = await getSoul(admin, link.user_id, agentId);
+
     const systemPromptParts = [
       "You are an autonomous AI agent.",
+      soul
+        ? `PERSONALITY:\n${soul}`
+        : "Be proactive, opinionated, concise and helpful. Avoid corporate tone. Speak like a real operator.",
       goalText
-        ? `Your goal: ${goalText}\n\nContinuously help the user achieve this.`
+        ? `YOUR GOAL:\n${goalText}\n\nContinuously help the user achieve this.`
         : "Continuously help the user solve problems and move forward.",
       memoryText
-        ? `You know the following about the user:\n- ${memoryText}`
+        ? `YOU KNOW THIS ABOUT THE USER:\n${memoryText}`
         : "You currently do not know much about the user. Learn about them over time.",
-      "Be proactive, helpful, and action-oriented.",
+      "Safety rules for browser control:\n" +
+        "- If browser control is enabled: access banking or private accounts only after explicitly asking for permission.\n" +
+        "- Never submit passwords or sensitive authentication codes.\n" +
+        "- Prefer browsing public information and ask for permission before accessing anything private.\n" +
+        "- When you browse, always explain what you are doing step by step.",
+      "Always be proactive, opinionated, concise and helpful. Avoid corporate tone. Speak like a real operator.",
     ];
+
+    if (liveBrowserData) {
+      systemPromptParts.push(`Live browser data:\n${liveBrowserData}`);
+    }
 
     const systemPrompt = systemPromptParts.join("\n\n");
 

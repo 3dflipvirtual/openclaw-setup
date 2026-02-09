@@ -14,7 +14,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("paid, onboarding_step")
+    .select("paid, onboarding_step, personality, personality_selected")
     .eq("id", user.id)
     .single();
 
@@ -25,5 +25,7 @@ export async function GET() {
   return NextResponse.json({
     paid: data?.paid ?? false,
     onboardingStep: data?.onboarding_step ?? 0,
+    personality: data?.personality ?? null,
+    personalitySelected: Boolean(data?.personality_selected),
   });
 }

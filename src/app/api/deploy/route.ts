@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { decryptSecret } from "@/lib/crypto";
+import { getSoulForPersonality } from "@/lib/personalities";
 import { createOrConfigureAgent, isVpsConfigured } from "@/lib/openclaw-vps";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -168,6 +169,26 @@ export async function POST() {
     user_id: user.id,
     message: "Deployed OpenClaw agent on always-on server.",
   });
+
+  // Insert soul for this agent from user's chosen personality (one per user_id + agent_id, do not overwrite)
+  if (telegramBotToken) {
+    const { data: profileRow } = await admin
+      .from("profiles")
+      .select("personality")
+      .eq("id", user.id)
+      .maybeSingle();
+    const soul = getSoulForPersonality(profileRow?.personality ?? "default");
+    await admin
+      .from("agent_soul")
+      .upsert(
+        {
+          user_id: user.id,
+          agent_id: telegramBotToken,
+          soul,
+        },
+        { onConflict: "user_id,agent_id", ignoreDuplicates: true }
+      );
+  }
 
   return NextResponse.json({
     status: "ok",

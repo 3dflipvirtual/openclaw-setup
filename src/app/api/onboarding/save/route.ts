@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-type SaveType = "claude_key" | "telegram_token" | "integrations" | "telegram_link";
+type SaveType =
+  | "claude_key"
+  | "telegram_token"
+  | "integrations"
+  | "telegram_link"
+  | "personality";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -23,6 +28,19 @@ export async function POST(request: Request) {
 
   if (!type) {
     return NextResponse.json({ error: "Missing type" }, { status: 400 });
+  }
+
+  if (type === "personality") {
+    const key = (value ?? "").trim();
+    if (!key) {
+      return NextResponse.json({ error: "Personality value required" }, { status: 400 });
+    }
+    await supabase
+      .from("profiles")
+      .update({ personality: key, personality_selected: true })
+      .eq("id", user.id);
+
+    return NextResponse.json({ ok: true });
   }
 
   if (type === "claude_key") {
