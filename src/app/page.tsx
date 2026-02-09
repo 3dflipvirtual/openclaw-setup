@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase/client";
+
+const WHOP_CHECKOUT_URL =
+  process.env.NEXT_PUBLIC_WHOP_CHECKOUT_URL ??
+  "https://whop.com/checkout/plan_45JMn0cnZdK2P";
 
 function GoogleIconWhite() {
   return (
@@ -71,6 +75,7 @@ function DiscordIcon({ className }: { className?: string }) {
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [telegramOpen, setTelegramOpen] = useState(false);
@@ -110,6 +115,20 @@ export default function Home() {
     };
     init();
   }, []);
+
+  // After return from Whop checkout, refetch profile (webhook may have just set paid)
+  useEffect(() => {
+    if (!searchParams.get("checkout") || !user) return;
+    const t = setTimeout(async () => {
+      const pr = await fetch("/api/profile");
+      if (pr.ok) {
+        const p = await pr.json();
+        setIsPaid(Boolean(p?.paid));
+      }
+      router.replace("/", { scroll: false });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [searchParams, user, router]);
 
   const signInGoogle = async () => {
     setSignInError(null);
@@ -205,7 +224,7 @@ export default function Home() {
     setDeployError(null);
     const res = await fetch("/api/deploy", { method: "POST" });
     if (res.status === 402) {
-      router.push("/paywall?return=/");
+      window.location.href = WHOP_CHECKOUT_URL;
       setDeploying(false);
       return;
     }
@@ -367,22 +386,31 @@ export default function Home() {
 
             {telegramLinked && (
               <div className="space-y-2">
-                <Button
-                  size="lg"
-                  className="w-full"
-                  onClick={deploy}
-                  disabled={deploying || deployDone}
-                >
-                  {deploying ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : deployDone ? (
-                    "Done"
-                  ) : isPaid ? (
-                    "Deploy"
-                  ) : (
-                    "Pay & deploy"
-                  )}
-                </Button>
+                {isPaid ? (
+                  <Button
+                    size="lg"
+                    className="w-full"
+                    onClick={deploy}
+                    disabled={deploying || deployDone}
+                  >
+                    {deploying ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : deployDone ? (
+                      "Done"
+                    ) : (
+                      "Deploy"
+                    )}
+                  </Button>
+                ) : (
+                  <a
+                    href={WHOP_CHECKOUT_URL}
+                    target="_self"
+                    rel="noopener noreferrer"
+                    className={buttonVariants({ size: "lg", className: "w-full" })}
+                  >
+                    Pay & deploy
+                  </a>
+                )}
                 {deployError && <p className="text-center text-xs text-red-600">{deployError}</p>}
                 {deployDone && (
                   <p className="flex items-center justify-center gap-1 text-sm text-emerald-600">
