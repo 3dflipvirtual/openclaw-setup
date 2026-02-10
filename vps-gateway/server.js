@@ -31,6 +31,17 @@ if (!API_KEY) {
   process.exit(1);
 }
 
+// Resolve the full path to the openclaw binary at startup.
+// This avoids PM2 confusing the binary name "openclaw" with an existing
+// PM2 process also named "openclaw" (the gateway itself).
+let OPENCLAW_BIN = "openclaw";
+try {
+  OPENCLAW_BIN = execSync("which openclaw", { encoding: "utf-8" }).trim();
+  console.log(`Resolved openclaw binary: ${OPENCLAW_BIN}`);
+} catch {
+  console.warn("Could not resolve openclaw binary path, using 'openclaw' from PATH");
+}
+
 // Ensure agents directory exists
 if (!existsSync(AGENTS_DIR)) {
   mkdirSync(AGENTS_DIR, { recursive: true });
@@ -191,8 +202,9 @@ function startAgent(userId) {
 
   // Start OpenClaw daemon with the agent's workspace
   // OpenClaw reads openclaw.json from the workspace directory
+  // Use full binary path to avoid PM2 confusing it with existing process names
   const child = spawn("pm2", [
-    "start", "openclaw",
+    "start", OPENCLAW_BIN,
     "--name", processName,
     "--",
     "--workspace", dir,

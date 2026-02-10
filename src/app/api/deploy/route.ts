@@ -147,7 +147,16 @@ export async function POST() {
     usingPlatformKey: !hasOwnKey,
   };
 
-  const result = await createOrConfigureAgent(agentConfig);
+  let result;
+  try {
+    result = await createOrConfigureAgent(agentConfig);
+  } catch (err) {
+    console.error("[deploy] VPS request failed:", err);
+    return NextResponse.json(
+      { error: "Could not reach the agent server. Try again in a moment." },
+      { status: 502 }
+    );
+  }
 
   if (!result.ok) {
     return NextResponse.json(
