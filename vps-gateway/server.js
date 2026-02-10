@@ -321,6 +321,21 @@ app.post("/api/agents", async (req, res) => {
     }
   }
 
+  // Clear any existing Telegram webhook so OpenClaw can use long polling.
+  // During onboarding, the webhook points to Vercel for linking code verification.
+  // We must remove it before OpenClaw starts or Telegram won't allow polling.
+  if (telegramBotToken) {
+    try {
+      const wh = await fetch(`https://api.telegram.org/bot${telegramBotToken}/deleteWebhook`, {
+        method: "POST",
+      });
+      const whResult = await wh.json();
+      console.log(`[agents] Deleted Telegram webhook for ${userId}:`, whResult?.ok ?? false);
+    } catch (err) {
+      console.warn(`[agents] Could not delete Telegram webhook for ${userId}:`, err.message);
+    }
+  }
+
   // Start the OpenClaw daemon
   const result = await startAgent(userId);
 
