@@ -207,14 +207,14 @@ function startAgent(userId) {
   const child = spawn("pm2", [
     "start", OPENCLAW_BIN,
     "--name", processName,
-    "--node-args", "--max-old-space-size=384",
+    "--node-args", "--max-old-space-size=512",
     "--",
     "--workspace", dir,
     "--config", join(dir, "openclaw.json"),
   ], {
     cwd: dir,
     stdio: "pipe",
-    env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=384" },
+    env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=512" },
   });
 
   let stdout = "";
