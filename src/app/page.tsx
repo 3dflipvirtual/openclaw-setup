@@ -12,6 +12,8 @@ const WHOP_CHECKOUT_URL =
   process.env.NEXT_PUBLIC_WHOP_CHECKOUT_URL ??
   "https://whop.com/checkout/plan_45JMn0cnZdK2P";
 
+const WHOP_RECHARGE_URL = "https://whop.com/checkout/plan_sS1L8L8ME8ls4";
+
 function GoogleIconWhite() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden>
@@ -96,6 +98,12 @@ function HomeContent() {
   const [telegramChannelSelected, setTelegramChannelSelected] = useState(false);
   const [personalitySelected, setPersonalitySelected] = useState(true);
   const [savingPersonality, setSavingPersonality] = useState(false);
+  const [usage, setUsage] = useState<{
+    monthlyPercent: number;
+    rechargePercent: number;
+    hasRecharge: boolean;
+    nearLimit: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -133,6 +141,39 @@ function HomeContent() {
     }, 1500);
     return () => clearTimeout(t);
   }, [searchParams, user, router]);
+
+  // After return from Whop recharge checkout, refetch usage
+  useEffect(() => {
+    if (!searchParams.get("recharge") || !user) return;
+    const t = setTimeout(async () => {
+      const res = await fetch("/api/usage");
+      if (res.ok) {
+        const data = (await res.json()) as {
+          monthlyPercent: number; rechargePercent: number;
+          hasRecharge: boolean; nearLimit: boolean;
+        };
+        setUsage(data);
+      }
+      router.replace("/", { scroll: false });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [searchParams, user, router]);
+
+  // Fetch usage data for logged-in paid users
+  useEffect(() => {
+    if (!user || !isPaid) return;
+    const fetchUsage = async () => {
+      const res = await fetch("/api/usage");
+      if (res.ok) {
+        const data = (await res.json()) as {
+          monthlyPercent: number; rechargePercent: number;
+          hasRecharge: boolean; nearLimit: boolean;
+        };
+        setUsage(data);
+      }
+    };
+    fetchUsage();
+  }, [user, isPaid]);
 
   const signInGoogle = async () => {
     setSignInError(null);
@@ -453,6 +494,68 @@ function HomeContent() {
                 {deployDone && (
                   <p className="flex items-center justify-center gap-1 text-sm text-emerald-600">
                     <CheckCircle2 className="h-4 w-4" /> Live. Message your bot.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {usage && isPaid && (
+              <div className="mt-6 space-y-3">
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs text-muted">
+                    <span>Monthly usage</span>
+                    <span>{usage.monthlyPercent}%</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-border/60">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        usage.monthlyPercent >= 80 ? "bg-amber-500" : "bg-emerald-500"
+                      }`}
+                      style={{ width: `${usage.monthlyPercent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {usage.hasRecharge && (
+                  <div>
+                    <div className="mb-1 flex items-center justify-between text-xs text-muted">
+                      <span>Recharge credits</span>
+                      <span>{usage.rechargePercent}% used</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-border/60">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          usage.rechargePercent >= 80 ? "bg-amber-500" : "bg-blue-500"
+                        }`}
+                        style={{ width: `${usage.rechargePercent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {usage.nearLimit && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-center">
+                    <p className="mb-2 text-xs text-amber-400">
+                      You&apos;re approaching your usage limit.
+                    </p>
+                    <a
+                      href={`${WHOP_RECHARGE_URL}?d=${encodeURIComponent(
+                        `${typeof window !== "undefined" ? window.location.origin : ""}/?recharge=success`
+                      )}`}
+                      target="_self"
+                      className={buttonVariants({
+                        size: "sm",
+                        className: "bg-amber-500 text-white hover:bg-amber-600",
+                      })}
+                    >
+                      Recharge tokens — $10
+                    </a>
+                  </div>
+                )}
+
+                {searchParams.get("recharge") === "success" && (
+                  <p className="flex items-center justify-center gap-1 text-sm text-emerald-600">
+                    <CheckCircle2 className="h-4 w-4" /> Credits recharged!
                   </p>
                 )}
               </div>

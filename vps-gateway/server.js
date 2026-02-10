@@ -19,7 +19,7 @@
 import "dotenv/config";
 import express from "express";
 import { execSync, spawn } from "child_process";
-import { existsSync, mkdirSync, writeFileSync, rmSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from "fs";
 import { join } from "path";
 
 const PORT = Number(process.env.PORT) || 3080;
@@ -72,10 +72,6 @@ function agentDir(userId) {
  * Build an openclaw.json configuration for a user.
  */
 function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxBaseUrl, anthropicApiKey, openaiApiKey, usingPlatformKey }) {
-  // Users on the platform key get daily rate limits to control API costs.
-  // Users who bring their own key get unlimited usage.
-  const PLATFORM_DAILY_LIMIT = 50;
-
   const config = {
     $schema: "https://openclaw.ai/schemas/openclaw.json",
     agents: {
@@ -102,13 +98,6 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
       // Own key users: every 30 minutes for full autonomy
       interval: usingPlatformKey ? 7200 : 1800,
     },
-    // Rate limits for platform key users
-    ...(usingPlatformKey ? {
-      rateLimit: {
-        maxMessagesPerDay: PLATFORM_DAILY_LIMIT,
-        limitMessage: "You've reached your daily message limit (50/day). Upgrade by adding your own API key for unlimited usage.",
-      },
-    } : {}),
   };
 
   // Configure model providers based on available keys
@@ -377,6 +366,60 @@ app.post("/api/agents/:userId/restart", async (req, res) => {
   }
 
   res.json({ ok: true, message: "Agent restarted" });
+});
+
+// GET /api/agents/:userId/usage — get token usage for this agent
+app.get("/api/agents/:userId/usage", (req, res) => {
+  const userId = req.params.userId;
+  const dir = agentDir(userId);
+
+  if (!existsSync(join(dir, "openclaw.json"))) {
+    return res.status(404).json({ error: "Agent not configured" });
+  }
+
+  // OpenClaw tracks token usage in the agent's workspace.
+  // Try reading from sessions.json or token usage files.
+  let tokensUsed = 0;
+
+  // Check OpenClaw's token usage tracking (sessions.json stores per-session token counts)
+  const sessionsPath = join(dir, "sessions.json");
+  if (existsSync(sessionsPath)) {
+    try {
+      const sessions = JSON.parse(readFileSync(sessionsPath, "utf-8"));
+      // Sum up token usage across all sessions
+      if (Array.isArray(sessions)) {
+        for (const s of sessions) {
+          tokensUsed += (s.tokensIn || 0) + (s.tokensOut || 0);
+        }
+      } else if (sessions && typeof sessions === "object") {
+        // Could be keyed by session ID
+        for (const key of Object.keys(sessions)) {
+          const s = sessions[key];
+          tokensUsed += (s?.tokensIn || 0) + (s?.tokensOut || 0);
+        }
+      }
+    } catch {
+      // Can't read sessions, default to 0
+    }
+  }
+
+  // Also check memory directory for activity (daily log files = agent was active)
+  const memoryDir = join(dir, "memory");
+  let activeDays = 0;
+  if (existsSync(memoryDir)) {
+    try {
+      const files = readdirSync(memoryDir).filter(f => f.endsWith(".md"));
+      activeDays = files.length;
+    } catch {
+      // ignore
+    }
+  }
+
+  res.json({
+    userId,
+    tokensUsed,
+    activeDays,
+  });
 });
 
 app.listen(PORT, "0.0.0.0", () => {
