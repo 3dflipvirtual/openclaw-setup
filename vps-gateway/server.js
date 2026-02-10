@@ -203,16 +203,18 @@ function startAgent(userId) {
   // Start OpenClaw daemon with the agent's workspace
   // OpenClaw reads openclaw.json from the workspace directory
   // Use full binary path to avoid PM2 confusing it with existing process names
+  // Limit heap to 384MB to stay within VPS memory constraints
   const child = spawn("pm2", [
     "start", OPENCLAW_BIN,
     "--name", processName,
+    "--node-args", "--max-old-space-size=384",
     "--",
     "--workspace", dir,
     "--config", join(dir, "openclaw.json"),
   ], {
     cwd: dir,
     stdio: "pipe",
-    env: { ...process.env },
+    env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=384" },
   });
 
   let stdout = "";
