@@ -209,6 +209,7 @@ function startAgent(userId) {
     "--",
     "gateway",
     "--profile", profile,
+    "--allow-unconfigured",
   ], {
     cwd: dir,
     stdio: "pipe",
