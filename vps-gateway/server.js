@@ -100,6 +100,9 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
     tools: {
       profile: "full",
     },
+    gateway: {
+      mode: "local",
+    },
     heartbeat: {
       enabled: true,
       // Platform key users: heartbeat every 2 hours to save API credits
