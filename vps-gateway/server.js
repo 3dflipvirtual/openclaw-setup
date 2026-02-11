@@ -24,7 +24,7 @@ import { join } from "path";
 
 const PORT = Number(process.env.PORT) || 3080;
 const API_KEY = process.env.OPENCLAW_VPS_API_KEY;
-const AGENTS_DIR = process.env.AGENTS_DIR || join(process.env.HOME || "/root", ".openclaw-agents");
+const HOME_DIR = process.env.HOME || "/root";
 
 if (!API_KEY) {
   console.error("OPENCLAW_VPS_API_KEY is required. Set it in the environment.");
@@ -40,10 +40,7 @@ try {
   console.warn("Could not resolve openclaw binary path, using 'openclaw' from PATH");
 }
 
-// Ensure agents directory exists
-if (!existsSync(AGENTS_DIR)) {
-  mkdirSync(AGENTS_DIR, { recursive: true });
-}
+// No shared agents dir needed — each profile gets ~/.openclaw-<profileName>/
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -62,19 +59,21 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     uptime: process.uptime(),
-    agentsDir: AGENTS_DIR,
   });
 });
 
 app.use("/api", requireApiKey);
 
 /**
- * Get the workspace directory for a user's agent.
+ * Get the profile directory for a user's agent.
+ * OpenClaw stores profile state at ~/.openclaw-<profileName>/
  */
+function profileName(userId) {
+  return userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
 function agentDir(userId) {
-  // Sanitize userId for filesystem safety
-  const safeId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
-  return join(AGENTS_DIR, safeId);
+  return join(HOME_DIR, `.openclaw-${profileName(userId)}`);
 }
 
 /**
@@ -198,14 +197,15 @@ function startAgent(userId) {
     // Process didn't exist, that's fine
   }
 
-  // Start OpenClaw daemon with the agent's workspace.
-  // Use full binary path to avoid PM2 confusing it with existing process names.
+  // Start OpenClaw gateway daemon with a per-user profile.
+  // --profile isolates state at ~/.openclaw-<profileName>/
+  const profile = profileName(userId);
   const child = spawn("pm2", [
     "start", OPENCLAW_BIN,
     "--name", processName,
     "--",
-    "--workspace", dir,
-    "--config", join(dir, "openclaw.json"),
+    "gateway",
+    "--profile", profile,
   ], {
     cwd: dir,
     stdio: "pipe",
@@ -448,5 +448,4 @@ app.get("/api/agents/:userId/usage", (req, res) => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`OpenClaw VPS Management Gateway listening on port ${PORT}`);
-  console.log(`Agents directory: ${AGENTS_DIR}`);
 });
