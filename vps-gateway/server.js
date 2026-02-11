@@ -31,16 +31,13 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-// Resolve the full path to the openclaw binary at startup.
-// This avoids PM2 confusing the binary name "openclaw" with an existing
-// PM2 process also named "openclaw" (the gateway itself).
-let OPENCLAW_BIN = "openclaw";
-try {
-  OPENCLAW_BIN = execSync("which openclaw", { encoding: "utf-8" }).trim();
-  console.log(`Resolved openclaw binary: ${OPENCLAW_BIN}`);
-} catch {
-  console.warn("Could not resolve openclaw binary path, using 'openclaw' from PATH");
-}
+// Path to the OpenClaw source entry point (built from GitHub).
+// Running via node instead of the compiled binary lets us control
+// --max-old-space-size for low-memory VPS environments.
+const OPENCLAW_ENTRY = process.env.OPENCLAW_ENTRY
+  || join(process.env.HOME || "/root", "openclaw", "openclaw.mjs");
+const OPENCLAW_HEAP_MB = Number(process.env.OPENCLAW_HEAP_MB) || 512;
+console.log(`OpenClaw entry: ${OPENCLAW_ENTRY} (heap limit: ${OPENCLAW_HEAP_MB}MB)`);
 
 // Ensure agents directory exists
 if (!existsSync(AGENTS_DIR)) {
@@ -200,21 +197,21 @@ function startAgent(userId) {
     // Process didn't exist, that's fine
   }
 
-  // Start OpenClaw daemon with the agent's workspace
-  // OpenClaw reads openclaw.json from the workspace directory
-  // Use full binary path to avoid PM2 confusing it with existing process names
-  // Limit heap to 384MB to stay within VPS memory constraints
+  // Start OpenClaw daemon with the agent's workspace.
+  // Uses the source-built openclaw.mjs via node (not the compiled binary)
+  // so --max-old-space-size actually works on low-memory VPS.
   const child = spawn("pm2", [
-    "start", OPENCLAW_BIN,
+    "start", OPENCLAW_ENTRY,
     "--name", processName,
-    "--node-args", "--max-old-space-size=512",
+    "--interpreter", "node",
+    "--node-args", `--max-old-space-size=${OPENCLAW_HEAP_MB}`,
     "--",
     "--workspace", dir,
     "--config", join(dir, "openclaw.json"),
   ], {
     cwd: dir,
     stdio: "pipe",
-    env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=512" },
+    env: { ...process.env },
   });
 
   let stdout = "";
