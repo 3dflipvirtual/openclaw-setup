@@ -178,6 +178,7 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
       enabled: true,
       botToken: telegramBotToken,
       dmPolicy: "open",
+      allowFrom: ["*"],
       groupPolicy: "disabled",
     };
   }
