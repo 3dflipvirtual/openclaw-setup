@@ -4,6 +4,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { whop } from "@/lib/whop";
 
 // Whop plan IDs
+const SUBSCRIPTION_PLAN_ID = "plan_45JMn0cnZdK2P";
 const RECHARGE_PLAN_ID = "plan_sS1L8L8ME8ls4";
 const RECHARGE_CREDITS = 1000; // Same as monthly base allocation
 
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
           message: "Recharged token credits (+$10).",
         });
       }
-    } else {
+    } else if (planId === SUBSCRIPTION_PLAN_ID) {
       // Monthly subscription payment
       await supabase
         .from("profiles")
