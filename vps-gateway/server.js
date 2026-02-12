@@ -204,6 +204,8 @@ function startAgent(userId) {
   // Start OpenClaw gateway daemon with a per-user profile.
   // --profile isolates state at ~/.openclaw-<profileName>/
   const profile = profileName(userId);
+  // Generate a simple token for OpenClaw's internal gateway auth
+  const gatewayToken = `oc_${userId.replace(/-/g, "").slice(0, 16)}`;
   const child = spawn("pm2", [
     "start", OPENCLAW_BIN,
     "--name", processName,
@@ -214,7 +216,7 @@ function startAgent(userId) {
   ], {
     cwd: dir,
     stdio: "pipe",
-    env: { ...process.env },
+    env: { ...process.env, OPENCLAW_GATEWAY_TOKEN: gatewayToken },
   });
 
   let stdout = "";
