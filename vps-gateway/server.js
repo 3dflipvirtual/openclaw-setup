@@ -180,6 +180,7 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
       dmPolicy: "open",
       allowFrom: ["*"],
       groupPolicy: "disabled",
+      streamMode: "partial",
     };
   }
 
