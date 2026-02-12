@@ -484,7 +484,9 @@ function HomeContent() {
                   </Button>
                 ) : (
                   <a
-                    href={WHOP_CHECKOUT_URL}
+                    href={`${WHOP_CHECKOUT_URL}?d=${encodeURIComponent(
+                      `${typeof window !== "undefined" ? window.location.origin : ""}/?checkout=success`
+                    )}`}
                     target="_self"
                     rel="noopener noreferrer"
                     className={buttonVariants({ size: "lg", className: "w-full" })}
