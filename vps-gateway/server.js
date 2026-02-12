@@ -306,10 +306,12 @@ app.post("/api/agents", async (req, res) => {
     mkdirSync(ocDir, { recursive: true });
   }
 
-  // Create memory directory inside .openclaw
-  const memoryDir = join(ocDir, "memory");
-  if (!existsSync(memoryDir)) {
-    mkdirSync(memoryDir, { recursive: true });
+  // Create required subdirectories inside .openclaw
+  for (const sub of ["memory", "agents/main/sessions", "credentials", "canvas"]) {
+    const dir = join(ocDir, sub);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
   }
 
   // Write openclaw.json into ~/.openclaw/
