@@ -5,15 +5,15 @@
  * this gateway writes openclaw.json + SOUL.md per user and manages PM2 processes.
  * OpenClaw handles Telegram natively via its built-in grammY channel.
  *
+ * Each user gets an isolated HOME directory so OpenClaw's default ~/.openclaw/
+ * path resolves to a per-user location.
+ *
  * Endpoints:
  *   POST   /api/agents            — create/update agent (writes config, starts daemon)
  *   DELETE /api/agents/:userId    — stop + remove agent
  *   GET    /api/agents/:userId    — get agent status (running, stopped, etc.)
  *   POST   /api/agents/:userId/restart — restart agent daemon
  *   GET    /api/health            — gateway health check
- *
- * Run: OPENCLAW_VPS_API_KEY=your-key node server.js
- * PM2: pm2 start server.js --name openclaw-gateway
  */
 
 import "dotenv/config";
@@ -24,7 +24,7 @@ import { join } from "path";
 
 const PORT = Number(process.env.PORT) || 3080;
 const API_KEY = process.env.OPENCLAW_VPS_API_KEY;
-const HOME_DIR = process.env.HOME || "/root";
+const AGENTS_DIR = process.env.AGENTS_DIR || "/root/openclaw-agents";
 
 if (!API_KEY) {
   console.error("OPENCLAW_VPS_API_KEY is required. Set it in the environment.");
@@ -40,7 +40,10 @@ try {
   console.warn("Could not resolve openclaw binary path, using 'openclaw' from PATH");
 }
 
-// No shared agents dir needed — each profile gets ~/.openclaw-<profileName>/
+// Ensure agents root directory exists
+if (!existsSync(AGENTS_DIR)) {
+  mkdirSync(AGENTS_DIR, { recursive: true });
+}
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -59,21 +62,27 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     uptime: process.uptime(),
+    agentsDir: AGENTS_DIR,
   });
 });
 
 app.use("/api", requireApiKey);
 
 /**
- * Get the profile directory for a user's agent.
- * OpenClaw stores profile state at ~/.openclaw-<profileName>/
+ * Get the isolated home directory for a user's agent.
+ * Each user gets AGENTS_DIR/<safeId>/ as their HOME.
+ * OpenClaw config goes to AGENTS_DIR/<safeId>/.openclaw/openclaw.json
  */
-function profileName(userId) {
+function safeId(userId) {
   return userId.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
-function agentDir(userId) {
-  return join(HOME_DIR, `.openclaw-${profileName(userId)}`);
+function userHome(userId) {
+  return join(AGENTS_DIR, safeId(userId));
+}
+
+function openclawDir(userId) {
+  return join(userHome(userId), ".openclaw");
 }
 
 /**
@@ -94,7 +103,6 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
         },
       ],
     },
-    // Model provider configuration — prefer MiniMax, fallback to others
     models: {},
     channels: {},
     tools: {
@@ -106,8 +114,6 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
     },
     heartbeat: {
       enabled: true,
-      // Platform key users: heartbeat every 2 hours to save API credits
-      // Own key users: every 30 minutes for full autonomy
       interval: usingPlatformKey ? 7200 : 1800,
     },
   };
@@ -168,7 +174,7 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
  * Check if a PM2 process exists for a user agent.
  */
 function getPm2Status(userId) {
-  const processName = `openclaw-${userId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  const processName = `openclaw-${safeId(userId)}`;
   try {
     const output = execSync(`pm2 jlist`, { encoding: "utf-8", timeout: 5000 });
     const processes = JSON.parse(output);
@@ -191,8 +197,8 @@ function getPm2Status(userId) {
  * Start or restart the OpenClaw daemon for a user via PM2.
  */
 function startAgent(userId) {
-  const dir = agentDir(userId);
-  const processName = `openclaw-${userId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  const home = userHome(userId);
+  const processName = `openclaw-${safeId(userId)}`;
 
   // Stop existing process if any
   try {
@@ -201,22 +207,24 @@ function startAgent(userId) {
     // Process didn't exist, that's fine
   }
 
-  // Start OpenClaw gateway daemon with a per-user profile.
-  // --profile isolates state at ~/.openclaw-<profileName>/
-  const profile = profileName(userId);
-  // Generate a simple token for OpenClaw's internal gateway auth
+  // Start OpenClaw gateway daemon with an isolated HOME directory.
+  // OpenClaw reads config from ~/.openclaw/openclaw.json by default.
+  // By setting HOME per-user, each daemon gets its own config space.
   const gatewayToken = `oc_${userId.replace(/-/g, "").slice(0, 16)}`;
   const child = spawn("pm2", [
     "start", OPENCLAW_BIN,
     "--name", processName,
     "--",
     "gateway",
-    "--profile", profile,
     "--allow-unconfigured",
   ], {
-    cwd: dir,
+    cwd: home,
     stdio: "pipe",
-    env: { ...process.env, OPENCLAW_GATEWAY_TOKEN: gatewayToken },
+    env: {
+      ...process.env,
+      HOME: home,
+      OPENCLAW_GATEWAY_TOKEN: gatewayToken,
+    },
   });
 
   let stdout = "";
@@ -230,7 +238,7 @@ function startAgent(userId) {
         console.error(`[agents] PM2 start failed for ${userId}:`, stderr.slice(0, 500));
         resolve({ ok: false, error: stderr.slice(0, 200) || "PM2 start failed" });
       } else {
-        console.log(`[agents] Started ${processName}`);
+        console.log(`[agents] Started ${processName} (HOME=${home})`);
         resolve({ ok: true });
       }
     });
@@ -245,7 +253,7 @@ function startAgent(userId) {
  * Stop the OpenClaw daemon for a user.
  */
 function stopAgent(userId) {
-  const processName = `openclaw-${userId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  const processName = `openclaw-${safeId(userId)}`;
   try {
     execSync(`pm2 delete ${processName}`, { stdio: "ignore", timeout: 10000 });
     console.log(`[agents] Stopped ${processName}`);
@@ -275,20 +283,19 @@ app.post("/api/agents", async (req, res) => {
     return res.status(400).json({ error: "userId (string) required" });
   }
 
-  const dir = agentDir(userId);
-
-  // Create agent workspace directory
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+  // Create user's isolated home and .openclaw directory
+  const ocDir = openclawDir(userId);
+  if (!existsSync(ocDir)) {
+    mkdirSync(ocDir, { recursive: true });
   }
 
-  // Create memory directory
-  const memoryDir = join(dir, "memory");
+  // Create memory directory inside .openclaw
+  const memoryDir = join(ocDir, "memory");
   if (!existsSync(memoryDir)) {
     mkdirSync(memoryDir, { recursive: true });
   }
 
-  // Write openclaw.json
+  // Write openclaw.json into ~/.openclaw/
   const config = buildOpenClawConfig({
     userId,
     telegramBotToken,
@@ -299,12 +306,12 @@ app.post("/api/agents", async (req, res) => {
     usingPlatformKey: Boolean(usingPlatformKey),
   });
 
-  writeFileSync(join(dir, "openclaw.json"), JSON.stringify(config, null, 2), "utf-8");
-  console.log(`[agents] Wrote openclaw.json for ${userId}`);
+  writeFileSync(join(ocDir, "openclaw.json"), JSON.stringify(config, null, 2), "utf-8");
+  console.log(`[agents] Wrote openclaw.json for ${userId} -> ${ocDir}`);
 
   // Write SOUL.md if provided
   if (soulMd && typeof soulMd === "string") {
-    writeFileSync(join(dir, "SOUL.md"), soulMd, "utf-8");
+    writeFileSync(join(ocDir, "SOUL.md"), soulMd, "utf-8");
     console.log(`[agents] Wrote SOUL.md for ${userId}`);
   }
 
@@ -314,7 +321,7 @@ app.post("/api/agents", async (req, res) => {
     for (const name of skillList) {
       try {
         execSync(`openclaw skills install ${name}`, {
-          cwd: dir,
+          cwd: ocDir,
           stdio: "ignore",
           timeout: 30000,
         });
@@ -326,8 +333,6 @@ app.post("/api/agents", async (req, res) => {
   }
 
   // Clear any existing Telegram webhook so OpenClaw can use long polling.
-  // During onboarding, the webhook points to Vercel for linking code verification.
-  // We must remove it before OpenClaw starts or Telegram won't allow polling.
   if (telegramBotToken) {
     try {
       const wh = await fetch(`https://api.telegram.org/bot${telegramBotToken}/deleteWebhook`, {
@@ -353,15 +358,7 @@ app.post("/api/agents", async (req, res) => {
 // DELETE /api/agents/:userId — stop and remove agent
 app.delete("/api/agents/:userId", (req, res) => {
   const userId = req.params.userId;
-
-  // Stop the daemon
   stopAgent(userId);
-
-  // Remove workspace (optional — keep data for now, just stop the process)
-  // To fully clean up, uncomment:
-  // const dir = agentDir(userId);
-  // if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
-
   console.log(`[agents] Deleted agent ${userId}`);
   res.json({ ok: true });
 });
@@ -369,9 +366,9 @@ app.delete("/api/agents/:userId", (req, res) => {
 // GET /api/agents/:userId — get agent status
 app.get("/api/agents/:userId", (req, res) => {
   const userId = req.params.userId;
-  const dir = agentDir(userId);
-  const configExists = existsSync(join(dir, "openclaw.json"));
-  const soulExists = existsSync(join(dir, "SOUL.md"));
+  const ocDir = openclawDir(userId);
+  const configExists = existsSync(join(ocDir, "openclaw.json"));
+  const soulExists = existsSync(join(ocDir, "SOUL.md"));
   const pm2Status = getPm2Status(userId);
 
   res.json({
@@ -385,9 +382,9 @@ app.get("/api/agents/:userId", (req, res) => {
 // POST /api/agents/:userId/restart — restart agent daemon
 app.post("/api/agents/:userId/restart", async (req, res) => {
   const userId = req.params.userId;
-  const dir = agentDir(userId);
+  const ocDir = openclawDir(userId);
 
-  if (!existsSync(join(dir, "openclaw.json"))) {
+  if (!existsSync(join(ocDir, "openclaw.json"))) {
     return res.status(404).json({ error: "Agent not configured. Deploy first." });
   }
 
@@ -402,40 +399,33 @@ app.post("/api/agents/:userId/restart", async (req, res) => {
 // GET /api/agents/:userId/usage — get token usage for this agent
 app.get("/api/agents/:userId/usage", (req, res) => {
   const userId = req.params.userId;
-  const dir = agentDir(userId);
+  const ocDir = openclawDir(userId);
 
-  if (!existsSync(join(dir, "openclaw.json"))) {
+  if (!existsSync(join(ocDir, "openclaw.json"))) {
     return res.status(404).json({ error: "Agent not configured" });
   }
 
-  // OpenClaw tracks token usage in the agent's workspace.
-  // Try reading from sessions.json or token usage files.
   let tokensUsed = 0;
-
-  // Check OpenClaw's token usage tracking (sessions.json stores per-session token counts)
-  const sessionsPath = join(dir, "sessions.json");
+  const sessionsPath = join(ocDir, "sessions.json");
   if (existsSync(sessionsPath)) {
     try {
       const sessions = JSON.parse(readFileSync(sessionsPath, "utf-8"));
-      // Sum up token usage across all sessions
       if (Array.isArray(sessions)) {
         for (const s of sessions) {
           tokensUsed += (s.tokensIn || 0) + (s.tokensOut || 0);
         }
       } else if (sessions && typeof sessions === "object") {
-        // Could be keyed by session ID
         for (const key of Object.keys(sessions)) {
           const s = sessions[key];
           tokensUsed += (s?.tokensIn || 0) + (s?.tokensOut || 0);
         }
       }
     } catch {
-      // Can't read sessions, default to 0
+      // ignore
     }
   }
 
-  // Also check memory directory for activity (daily log files = agent was active)
-  const memoryDir = join(dir, "memory");
+  const memoryDir = join(ocDir, "memory");
   let activeDays = 0;
   if (existsSync(memoryDir)) {
     try {
@@ -455,4 +445,5 @@ app.get("/api/agents/:userId/usage", (req, res) => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`OpenClaw VPS Management Gateway listening on port ${PORT}`);
+  console.log(`Agents directory: ${AGENTS_DIR}`);
 });
