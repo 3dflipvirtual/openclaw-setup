@@ -124,7 +124,7 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
     config.agents.defaults.model.primary = "minimax/MiniMax-M2.1";
     config.models.providers.minimax = {
       apiKey: minimaxApiKey,
-      baseUrl: minimaxBaseUrl || "https://api.minimax.io/anthropic/v1",
+      baseUrl: minimaxBaseUrl || "https://api.minimax.io/anthropic",
       api: "anthropic-messages",
       models: [
         {
