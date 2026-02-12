@@ -90,80 +90,95 @@ function openclawDir(userId) {
  */
 function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxBaseUrl, anthropicApiKey, openaiApiKey, usingPlatformKey }) {
   const config = {
-    $schema: "https://openclaw.ai/schemas/openclaw.json",
     agents: {
-      default: userId,
+      defaults: {
+        model: {},
+      },
       list: [
         {
-          id: userId,
-          identity: {
-            name: "OpenClaw Agent",
-            emoji: "🦞",
-          },
+          id: "main",
+          default: true,
         },
       ],
     },
-    models: {},
-    channels: {},
-    tools: {
-      profile: "full",
+    models: {
+      providers: {},
     },
+    channels: {},
     gateway: {
       mode: "local",
-      auth: "none",
+      auth: { mode: "none" },
     },
-    heartbeat: {
-      enabled: true,
-      interval: usingPlatformKey ? 7200 : 1800,
+    cron: {
+      enabled: !usingPlatformKey,
     },
   };
 
   // Configure model providers based on available keys
   if (minimaxApiKey) {
-    config.models.default = {
-      provider: "minimax",
-      model: "MiniMax-M2.1",
-    };
-    config.models.providers = config.models.providers || {};
+    config.agents.defaults.model.primary = "minimax/MiniMax-M2.1";
     config.models.providers.minimax = {
       apiKey: minimaxApiKey,
-      ...(minimaxBaseUrl ? { baseUrl: minimaxBaseUrl } : {}),
+      baseUrl: minimaxBaseUrl || "https://api.minimax.io/anthropic",
+      api: "anthropic-messages",
+      models: [
+        {
+          id: "MiniMax-M2.1",
+          name: "MiniMax M2.1",
+          reasoning: false,
+          input: ["text"],
+          contextWindow: 128000,
+          maxTokens: 8192,
+        },
+      ],
     };
   }
 
   if (anthropicApiKey) {
-    if (!config.models.default) {
-      config.models.default = {
-        provider: "anthropic",
-        model: "claude-sonnet-4-5-20250929",
-      };
+    if (!config.agents.defaults.model.primary) {
+      config.agents.defaults.model.primary = "anthropic/claude-sonnet-4-5";
     }
-    config.models.providers = config.models.providers || {};
     config.models.providers.anthropic = {
       apiKey: anthropicApiKey,
+      models: [
+        {
+          id: "claude-sonnet-4-5",
+          name: "Claude Sonnet 4.5",
+          reasoning: true,
+          input: ["text"],
+          contextWindow: 200000,
+          maxTokens: 8192,
+        },
+      ],
     };
   }
 
   if (openaiApiKey) {
-    if (!config.models.default) {
-      config.models.default = {
-        provider: "openai",
-        model: "gpt-4o",
-      };
+    if (!config.agents.defaults.model.primary) {
+      config.agents.defaults.model.primary = "openai/gpt-4o";
     }
-    config.models.providers = config.models.providers || {};
     config.models.providers.openai = {
       apiKey: openaiApiKey,
+      models: [
+        {
+          id: "gpt-4o",
+          name: "GPT-4o",
+          reasoning: false,
+          input: ["text"],
+          contextWindow: 128000,
+          maxTokens: 16384,
+        },
+      ],
     };
   }
 
-  // Configure Telegram channel if bot token is provided
+  // Configure Telegram channel
   if (telegramBotToken) {
     config.channels.telegram = {
       enabled: true,
       botToken: telegramBotToken,
-      dm: { enabled: true, mode: "auto" },
-      groups: { enabled: false },
+      dmPolicy: "open",
+      groupPolicy: "deny",
     };
   }
 
