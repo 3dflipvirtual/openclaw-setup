@@ -109,6 +109,11 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
       mode: "local",
       auth: { mode: "token" },
     },
+    plugins: {
+      entries: {
+        telegram: { enabled: true },
+      },
+    },
     cron: {
       enabled: !usingPlatformKey,
     },
