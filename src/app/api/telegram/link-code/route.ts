@@ -29,14 +29,11 @@ export async function POST() {
     );
   }
 
-  if (existing?.code && !existing.verified) {
-    return NextResponse.json({ code: existing.code });
-  }
-
-  if (existing?.code && existing.verified) {
+  if (existing?.verified) {
     return NextResponse.json({ code: existing.code, verified: true });
   }
 
+  // Always generate a fresh code when requested
   const code = generateCode();
   const { error } = await supabase
     .from("telegram_links")

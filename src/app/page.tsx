@@ -87,7 +87,6 @@ function HomeContent() {
   const [telegramError, setTelegramError] = useState<string | null>(null);
   const [telegramCode, setTelegramCode] = useState<string | null>(null);
   const [telegramLinked, setTelegramLinked] = useState(false);
-  const [telegramChecking, setTelegramChecking] = useState(false);
   const [telegramDisconnecting, setTelegramDisconnecting] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [deployDone, setDeployDone] = useState(false);
@@ -160,6 +159,7 @@ function HomeContent() {
   }, [searchParams, user, router]);
 
   // Fetch usage data for logged-in paid users
+  // Fetch usage data for logged-in paid users
   useEffect(() => {
     if (!user || !isPaid) return;
     const fetchUsage = async () => {
@@ -174,6 +174,25 @@ function HomeContent() {
     };
     fetchUsage();
   }, [user, isPaid]);
+
+  // Auto-poll link status after code is shown (every 3s until verified)
+  useEffect(() => {
+    if (!telegramCode || telegramLinked) return;
+    const interval = setInterval(async () => {
+      const res = await fetch("/api/telegram/link-status");
+      if (!res.ok) return;
+      const data = (await res.json()) as { verified?: boolean };
+      if (data?.verified) {
+        setTelegramLinked(true);
+        await fetch("/api/onboarding/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "telegram_link" }),
+        });
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [telegramCode, telegramLinked]);
 
   const signInGoogle = async () => {
     setSignInError(null);
@@ -237,32 +256,14 @@ function HomeContent() {
   };
 
   const getCode = async () => {
-    setTelegramChecking(true);
     const res = await fetch("/api/telegram/link-code", { method: "POST" });
     const data = (await res.json()) as { code?: string; verified?: boolean };
-    setTelegramChecking(false);
     if (res.ok) {
       setTelegramCode(data?.code ?? null);
-      setTelegramLinked(Boolean(data?.verified));
+      if (data?.verified) setTelegramLinked(true);
     }
   };
 
-  const checkLinked = async () => {
-    setTelegramChecking(true);
-    const res = await fetch("/api/telegram/link-status");
-    const data = (await res.json()) as { verified?: boolean };
-    setTelegramChecking(false);
-    if (!res.ok) return;
-    const verified = Boolean(data?.verified);
-    setTelegramLinked(verified);
-    if (verified) {
-      await fetch("/api/onboarding/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "telegram_link" }),
-      });
-    }
-  };
 
   const deploy = async () => {
     setDeploying(true);
@@ -444,18 +445,19 @@ function HomeContent() {
                       <div className="rounded-lg border border-border/60 bg-background px-3 py-2 text-center font-mono text-sm">
                         {telegramCode}
                       </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={getCode} disabled={telegramChecking}>
-                          {telegramChecking ? "..." : "New code"}
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={checkLinked} disabled={telegramChecking}>
-                          {telegramChecking ? "..." : "I sent it"}
-                        </Button>
-                      </div>
-                      {telegramLinked && (
+                      {telegramLinked ? (
                         <p className="flex items-center gap-1 text-xs text-emerald-600">
                           <CheckCircle2 className="h-3 w-3" /> Linked
                         </p>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="flex items-center gap-1 text-xs text-muted">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Waiting for you to send the code…
+                          </p>
+                          <Button variant="outline" size="sm" onClick={getCode}>
+                            New code
+                          </Button>
+                        </div>
                       )}
                     </div>
                   )}
