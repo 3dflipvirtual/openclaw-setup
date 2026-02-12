@@ -107,7 +107,7 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
     channels: {},
     gateway: {
       mode: "local",
-      auth: { mode: "none" },
+      auth: { mode: "token" },
     },
     cron: {
       enabled: !usingPlatformKey,
@@ -178,7 +178,7 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
       enabled: true,
       botToken: telegramBotToken,
       dmPolicy: "open",
-      groupPolicy: "deny",
+      groupPolicy: "disabled",
     };
   }
 
