@@ -102,6 +102,7 @@ function buildOpenClawConfig({ userId, telegramBotToken, minimaxApiKey, minimaxB
     },
     gateway: {
       mode: "local",
+      auth: "none",
     },
     heartbeat: {
       enabled: true,
