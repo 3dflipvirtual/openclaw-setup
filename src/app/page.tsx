@@ -2,17 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Brain,
-  CheckCircle2,
-  ChevronDown,
-  Clock,
-  Globe,
-  Loader2,
-  MessageSquare,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PERSONALITIES } from "@/lib/personalities";
@@ -126,10 +116,13 @@ function HomeContent() {
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
-          if (e.isIntersecting) e.target.classList.add("visible");
+          if (e.isIntersecting) {
+            // Respect per-card transition-delay for stagger effect
+            e.target.classList.add("visible");
+          }
         });
       },
-      { threshold: 0.15 }
+      { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
     );
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
@@ -610,88 +603,228 @@ function HomeContent() {
 
       {/* Landing page sections — only for visitors */}
       {!user && (
-        <>
+        <div className="mx-auto mt-16 max-w-3xl space-y-20">
           {/* What is OpenClaw */}
-          <div ref={setFadeRef(0)} className="fade-section mt-12">
-            <div className="glass-card rounded-2xl p-6 sm:p-8">
-              <div className="mb-4 flex items-center gap-3">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full lobster-gradient text-white">
-                  <Zap className="h-5 w-5" />
-                </span>
-                <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
-                  What is OpenClaw?
-                </h2>
-              </div>
-              <p className="text-sm leading-relaxed text-muted sm:text-base">
-                OpenClaw is an autonomous AI agent that lives on Telegram. It remembers
-                your conversations, browses the web, manages tasks, and works around the
-                clock &mdash; like having a personal AI assistant in your pocket.
-                Deploy yours in under two minutes with zero technical setup.
-              </p>
-            </div>
+          <div ref={setFadeRef(0)} className="fade-section text-center">
+            <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl lobster-gradient text-white shadow-lg shadow-lobster/20">
+              {/* Claw / lobster icon */}
+              <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 3c0 3-2 5-2 8a6 6 0 0 0 12 0c0-3-2-5-2-8" />
+                <path d="M12 19v2" />
+                <path d="M8 21h8" />
+                <circle cx="12" cy="11" r="1" fill="currentColor" />
+              </svg>
+            </span>
+            <h2 className="mb-3 text-2xl font-bold tracking-tight sm:text-3xl">
+              What is OpenClaw?
+            </h2>
+            <p className="mx-auto max-w-lg text-sm leading-relaxed text-muted sm:text-base">
+              An autonomous AI agent that lives on Telegram. It remembers
+              your conversations, browses the web, manages tasks, and works around the
+              clock &mdash; like a personal AI assistant in your pocket.
+            </p>
+            <p className="mt-2 text-xs text-muted/60">
+              Deploy yours in under two minutes. Zero technical setup.
+            </p>
           </div>
 
           {/* Use cases */}
-          <div ref={setFadeRef(1)} className="fade-section mt-8">
-            <h2 className="mb-4 text-center text-lg font-bold tracking-tight sm:text-xl">
-              What can it do?
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                {
-                  icon: MessageSquare,
-                  title: "Personal Assistant",
-                  desc: "Schedule reminders, manage tasks, take notes — all from a chat.",
-                },
-                {
-                  icon: Globe,
-                  title: "Research Helper",
-                  desc: "Browse the web, summarize articles, and find answers instantly.",
-                },
-                {
-                  icon: Sparkles,
-                  title: "Creative Partner",
-                  desc: "Brainstorm ideas, write content, draft emails, and get feedback.",
-                },
-                {
-                  icon: Brain,
-                  title: "Long-term Memory",
-                  desc: "Remembers everything you tell it and builds context over time.",
-                },
-                {
-                  icon: Zap,
-                  title: "Business Autopilot",
-                  desc: "Handle inquiries, automate workflows, and keep things running.",
-                },
-                {
-                  icon: Clock,
-                  title: "24/7 Availability",
-                  desc: "Always on, responds instantly, and never needs a break.",
-                },
-              ].map((c) => (
-                <div
-                  key={c.title}
-                  className="glass-card rounded-xl p-4 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
-                >
-                  <div className="mb-2 flex items-center gap-2">
-                    <c.icon className="h-4 w-4 text-lobster" />
-                    <span className="text-sm font-semibold text-foreground">{c.title}</span>
+          <div>
+            <div ref={setFadeRef(1)} className="fade-section mb-8 text-center">
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+                What can it do?
+              </h2>
+              <p className="mt-2 text-sm text-muted">
+                One chat. Endless capabilities.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Row 1 */}
+              <div
+                ref={setFadeRef(2)}
+                className="fade-card use-case-card glass-card rounded-2xl p-6 transition-[transform,box-shadow] hover:-translate-y-1 hover:shadow-xl active:translate-y-0"
+                onMouseMove={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  e.currentTarget.style.setProperty("--mouse-x", `${e.clientX - r.left}px`);
+                  e.currentTarget.style.setProperty("--mouse-y", `${e.clientY - r.top}px`);
+                }}
+                style={{ transitionDelay: "0ms" }}
+              >
+                <div className="flex items-start gap-4">
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#ff4500]/10 text-lobster">
+                    {/* Chat bubble with dots */}
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      <circle cx="9" cy="10" r="1" fill="currentColor" stroke="none" />
+                      <circle cx="12" cy="10" r="1" fill="currentColor" stroke="none" />
+                      <circle cx="15" cy="10" r="1" fill="currentColor" stroke="none" />
+                    </svg>
+                  </span>
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">Personal Assistant</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted">
+                      Schedule reminders, manage your to-do list, take quick notes, and
+                      organize your day &mdash; all from a single Telegram chat.
+                    </p>
                   </div>
-                  <p className="text-xs leading-relaxed text-muted">{c.desc}</p>
                 </div>
-              ))}
+              </div>
+
+              {/* Row 2 — two cards side by side */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div
+                  ref={setFadeRef(3)}
+                  className="fade-card use-case-card glass-card rounded-2xl p-6 transition-[transform,box-shadow] hover:-translate-y-1 hover:shadow-xl active:translate-y-0"
+                  onMouseMove={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    e.currentTarget.style.setProperty("--mouse-x", `${e.clientX - r.left}px`);
+                    e.currentTarget.style.setProperty("--mouse-y", `${e.clientY - r.top}px`);
+                  }}
+                  style={{ transitionDelay: "80ms" }}
+                >
+                  <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#3b82f6]/10 text-[#3b82f6]">
+                    {/* Globe with search magnifier */}
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8" />
+                      <path d="M11 3a15.3 15.3 0 0 1 4 8 15.3 15.3 0 0 1-4 8 15.3 15.3 0 0 1-4-8 15.3 15.3 0 0 1 4-8z" />
+                      <path d="M3 11h16" />
+                      <path d="m21 21-3.5-3.5" />
+                    </svg>
+                  </span>
+                  <h3 className="text-base font-semibold text-foreground">Research Helper</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                    Browses the web, summarizes articles, and finds
+                    answers to your questions in real time.
+                  </p>
+                </div>
+
+                <div
+                  ref={setFadeRef(4)}
+                  className="fade-card use-case-card glass-card rounded-2xl p-6 transition-[transform,box-shadow] hover:-translate-y-1 hover:shadow-xl active:translate-y-0"
+                  onMouseMove={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    e.currentTarget.style.setProperty("--mouse-x", `${e.clientX - r.left}px`);
+                    e.currentTarget.style.setProperty("--mouse-y", `${e.clientY - r.top}px`);
+                  }}
+                  style={{ transitionDelay: "160ms" }}
+                >
+                  <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#a855f7]/10 text-[#a855f7]">
+                    {/* Pen with sparkle */}
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      <path d="m18 2 1.5-.5.5 1.5" />
+                    </svg>
+                  </span>
+                  <h3 className="text-base font-semibold text-foreground">Creative Partner</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                    Brainstorm ideas, write content, draft emails,
+                    and get instant creative feedback.
+                  </p>
+                </div>
+              </div>
+
+              {/* Row 3 — two cards side by side */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div
+                  ref={setFadeRef(5)}
+                  className="fade-card use-case-card glass-card rounded-2xl p-6 transition-[transform,box-shadow] hover:-translate-y-1 hover:shadow-xl active:translate-y-0"
+                  onMouseMove={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    e.currentTarget.style.setProperty("--mouse-x", `${e.clientX - r.left}px`);
+                    e.currentTarget.style.setProperty("--mouse-y", `${e.clientY - r.top}px`);
+                  }}
+                  style={{ transitionDelay: "240ms" }}
+                >
+                  <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#10b981]/10 text-[#10b981]">
+                    {/* Brain with connection nodes */}
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2a5 5 0 0 1 5 5c0 1.5-.7 3-2 4v2h-6v-2c-1.3-1-2-2.5-2-4a5 5 0 0 1 5-5z" />
+                      <path d="M9 13v2a3 3 0 0 0 6 0v-2" />
+                      <path d="M12 17v4" />
+                      <path d="M8 21h8" />
+                      <circle cx="10" cy="7" r="0.5" fill="currentColor" stroke="none" />
+                      <circle cx="14" cy="7" r="0.5" fill="currentColor" stroke="none" />
+                      <path d="M10 7h4" />
+                    </svg>
+                  </span>
+                  <h3 className="text-base font-semibold text-foreground">Long-term Memory</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                    Remembers everything you tell it and builds
+                    richer context over time.
+                  </p>
+                </div>
+
+                <div
+                  ref={setFadeRef(6)}
+                  className="fade-card use-case-card glass-card rounded-2xl p-6 transition-[transform,box-shadow] hover:-translate-y-1 hover:shadow-xl active:translate-y-0"
+                  onMouseMove={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    e.currentTarget.style.setProperty("--mouse-x", `${e.clientX - r.left}px`);
+                    e.currentTarget.style.setProperty("--mouse-y", `${e.clientY - r.top}px`);
+                  }}
+                  style={{ transitionDelay: "320ms" }}
+                >
+                  <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#f59e0b]/10 text-[#f59e0b]">
+                    {/* Gear with lightning bolt */}
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                      <path d="m13 10-2 4h2l-2 4" />
+                    </svg>
+                  </span>
+                  <h3 className="text-base font-semibold text-foreground">Business Autopilot</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                    Handle customer inquiries, automate repetitive
+                    workflows, and keep operations running.
+                  </p>
+                </div>
+              </div>
+
+              {/* Row 4 — full width */}
+              <div
+                ref={setFadeRef(7)}
+                className="fade-card use-case-card glass-card rounded-2xl p-6 transition-[transform,box-shadow] hover:-translate-y-1 hover:shadow-xl active:translate-y-0"
+                onMouseMove={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  e.currentTarget.style.setProperty("--mouse-x", `${e.clientX - r.left}px`);
+                  e.currentTarget.style.setProperty("--mouse-y", `${e.clientY - r.top}px`);
+                }}
+                style={{ transitionDelay: "400ms" }}
+              >
+                <div className="flex items-start gap-4">
+                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#06b6d4]/10 text-[#06b6d4]">
+                    {/* Pulse / always-on signal */}
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+                      <path d="M16.24 7.76a6 6 0 0 1 0 8.49" />
+                      <path d="M7.76 16.24a6 6 0 0 1 0-8.49" />
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                      <path d="M4.93 19.07a10 10 0 0 1 0-14.14" />
+                    </svg>
+                  </span>
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">Always On, 24/7</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted">
+                      Your agent never sleeps. It responds instantly, any time of day or
+                      night, and picks up exactly where you left off.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Disclaimer */}
-          <div ref={setFadeRef(2)} className="fade-section mt-8 mb-4">
+          <div ref={setFadeRef(8)} className="fade-section">
             <p className="text-center text-[11px] leading-relaxed text-muted/70">
               OpenClaw is a powerful autonomous AI agent. By deploying, you
               acknowledge that you are solely responsible for your agent&apos;s
               actions. We are not liable for any outcomes resulting from its use.
             </p>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
