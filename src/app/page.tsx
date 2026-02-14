@@ -1,8 +1,18 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, ChevronDown, Loader2 } from "lucide-react";
+import {
+  Brain,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  Globe,
+  Loader2,
+  MessageSquare,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PERSONALITIES } from "@/lib/personalities";
@@ -104,6 +114,27 @@ function HomeContent() {
     nearLimit: boolean;
   } | null>(null);
 
+  // Intersection observer for fade-in-up sections
+  const fadeRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const setFadeRef = useCallback((i: number) => (el: HTMLDivElement | null) => {
+    fadeRefs.current[i] = el;
+  }, []);
+
+  useEffect(() => {
+    const els = fadeRefs.current.filter(Boolean) as HTMLDivElement[];
+    if (!els.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) e.target.classList.add("visible");
+        });
+      },
+      { threshold: 0.15 }
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  });
+
   useEffect(() => {
     const init = async () => {
       const { data } = await supabase.auth.getUser();
@@ -158,7 +189,6 @@ function HomeContent() {
     return () => clearTimeout(t);
   }, [searchParams, user, router]);
 
-  // Fetch usage data for logged-in paid users
   // Fetch usage data for logged-in paid users
   useEffect(() => {
     if (!user || !isPaid) return;
@@ -577,6 +607,92 @@ function HomeContent() {
           </>
         )}
       </div>
+
+      {/* Landing page sections — only for visitors */}
+      {!user && (
+        <>
+          {/* What is OpenClaw */}
+          <div ref={setFadeRef(0)} className="fade-section mt-12">
+            <div className="glass-card rounded-2xl p-6 sm:p-8">
+              <div className="mb-4 flex items-center gap-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full lobster-gradient text-white">
+                  <Zap className="h-5 w-5" />
+                </span>
+                <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+                  What is OpenClaw?
+                </h2>
+              </div>
+              <p className="text-sm leading-relaxed text-muted sm:text-base">
+                OpenClaw is an autonomous AI agent that lives on Telegram. It remembers
+                your conversations, browses the web, manages tasks, and works around the
+                clock &mdash; like having a personal AI assistant in your pocket.
+                Deploy yours in under two minutes with zero technical setup.
+              </p>
+            </div>
+          </div>
+
+          {/* Use cases */}
+          <div ref={setFadeRef(1)} className="fade-section mt-8">
+            <h2 className="mb-4 text-center text-lg font-bold tracking-tight sm:text-xl">
+              What can it do?
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                {
+                  icon: MessageSquare,
+                  title: "Personal Assistant",
+                  desc: "Schedule reminders, manage tasks, take notes — all from a chat.",
+                },
+                {
+                  icon: Globe,
+                  title: "Research Helper",
+                  desc: "Browse the web, summarize articles, and find answers instantly.",
+                },
+                {
+                  icon: Sparkles,
+                  title: "Creative Partner",
+                  desc: "Brainstorm ideas, write content, draft emails, and get feedback.",
+                },
+                {
+                  icon: Brain,
+                  title: "Long-term Memory",
+                  desc: "Remembers everything you tell it and builds context over time.",
+                },
+                {
+                  icon: Zap,
+                  title: "Business Autopilot",
+                  desc: "Handle inquiries, automate workflows, and keep things running.",
+                },
+                {
+                  icon: Clock,
+                  title: "24/7 Availability",
+                  desc: "Always on, responds instantly, and never needs a break.",
+                },
+              ].map((c) => (
+                <div
+                  key={c.title}
+                  className="glass-card rounded-xl p-4 transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-md active:translate-y-0"
+                >
+                  <div className="mb-2 flex items-center gap-2">
+                    <c.icon className="h-4 w-4 text-lobster" />
+                    <span className="text-sm font-semibold text-foreground">{c.title}</span>
+                  </div>
+                  <p className="text-xs leading-relaxed text-muted">{c.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Disclaimer */}
+          <div ref={setFadeRef(2)} className="fade-section mt-8 mb-4">
+            <p className="text-center text-[11px] leading-relaxed text-muted/70">
+              OpenClaw is a powerful autonomous AI agent. By deploying, you
+              acknowledge that you are solely responsible for your agent&apos;s
+              actions. We are not liable for any outcomes resulting from its use.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

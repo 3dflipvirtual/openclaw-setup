@@ -62,3 +62,14 @@ h6 {
 .hero-glow {
   background: radial-gradient(circle at top, rgba(255, 69, 0, 0.28), transparent 60%);
 }
+
+/* Scroll-triggered fade-in-up */
+.fade-section {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+.fade-section.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
