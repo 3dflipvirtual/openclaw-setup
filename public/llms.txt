@@ -1,0 +1,30 @@
+# OpenClaw
+
+> Deploy an autonomous AI agent on Telegram in 60 seconds.
+
+OpenClaw is a platform that lets anyone deploy a persistent, autonomous AI agent on Telegram — no coding required. Your agent remembers conversations, browses the web, manages tasks, and runs 24/7.
+
+## Quick Facts
+- Website: https://open-clawbot.com
+- Platform: Telegram
+- Pricing: $29/month
+- Setup time: ~60 seconds
+- No code required
+
+## What It Does
+- Autonomous AI agent that lives in Telegram
+- Persistent memory across all conversations
+- Web browsing and research capabilities
+- Task management and scheduling
+- Always-on — responds instantly, never sleeps
+- Works for personal use, business support, research, and more
+
+## Getting Started
+1. Sign up at https://open-clawbot.com
+2. Create a Telegram bot via @BotFather
+3. Paste your bot token
+4. Choose a personality
+5. Deploy — your agent is live
+
+## More Info
+- Full details: https://open-clawbot.com/llms-full.txt

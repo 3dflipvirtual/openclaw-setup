@@ -1,0 +1,78 @@
+# OpenClaw — Full Documentation
+
+> Deploy an autonomous AI agent on Telegram in 60 seconds.
+
+Website: https://open-clawbot.com
+
+## Overview
+
+OpenClaw is a platform that enables anyone to deploy a fully autonomous AI agent on Telegram without writing a single line of code. Each agent runs as a persistent daemon on dedicated infrastructure, maintaining long-term memory, browsing the web, managing tasks, and operating 24/7.
+
+## Core Features
+
+### Persistent Memory
+Your agent remembers every conversation. It builds context over time, learning your preferences, projects, and needs. Unlike stateless chatbots, OpenClaw agents maintain continuity across sessions.
+
+### Web Browsing
+Agents can browse the web in real-time using a built-in browser. They can research topics, summarize articles, check facts, and find information on your behalf.
+
+### Task Management
+Create tasks, set reminders, and manage to-do lists through natural conversation. Your agent tracks everything and follows up proactively.
+
+### Always On
+OpenClaw agents run as persistent daemons on cloud infrastructure. They're always available, respond instantly, and never go offline.
+
+### Personality Customization
+Choose from preset personalities (Operator, Friendly, Professional, Minimal) or customize your agent's behavior and communication style.
+
+### Autonomous Operation
+Agents don't just respond — they can take initiative. With configurable autonomy levels, your agent can proactively check in, provide updates, and handle tasks independently.
+
+## Use Cases
+
+### Personal Assistant
+Schedule reminders, manage tasks, take notes, and organize your life through natural Telegram conversations.
+
+### Research Helper
+Ask your agent to research any topic. It browses the web, summarizes findings, and remembers everything for future reference.
+
+### Business Autopilot
+Handle customer inquiries, draft responses, automate repetitive workflows, and keep your business running around the clock.
+
+### Creative Partner
+Brainstorm ideas, write content, get feedback on drafts, and collaborate on creative projects with an AI that knows your style.
+
+### Customer Support
+Deploy an agent that handles customer questions, provides instant responses, and escalates complex issues — available 24/7.
+
+### Knowledge Base
+Your agent accumulates knowledge over time. Tell it important information once, and it remembers forever — building a personal knowledge base you can query anytime.
+
+## Technical Details
+
+- **Runtime**: OpenClaw open-source agent framework
+- **Messaging**: Native Telegram integration via grammY
+- **AI Models**: MiniMax, Anthropic Claude, OpenAI (bring your own key or use platform key)
+- **Infrastructure**: Dedicated VPS per agent, managed via PM2
+- **Memory**: Persistent vector memory with conversation history
+- **Browser**: Built-in CDP (Chrome DevTools Protocol) for web access
+
+## Pricing
+
+- **Monthly subscription**: $29/month
+- **Includes**: 1 agent, persistent hosting, base token allocation
+- **Token recharges**: Available for heavy usage
+
+## Getting Started
+
+1. Visit https://open-clawbot.com and sign in
+2. Subscribe to the monthly plan
+3. Create a Telegram bot via @BotFather and copy the token
+4. Paste the bot token in the dashboard
+5. Send the verification code to your bot
+6. Choose a personality preset
+7. Click Deploy — your agent starts running immediately
+
+## Contact
+
+Website: https://open-clawbot.com

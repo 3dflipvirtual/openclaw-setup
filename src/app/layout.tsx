@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
+import { JsonLd } from "@/components/JsonLd";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
@@ -22,40 +23,49 @@ const inter = Inter({
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://open-clawbot.com";
 
+const siteDescription =
+  "Deploy an autonomous AI agent on Telegram in 60 seconds. OpenClaw remembers conversations, browses the web, manages tasks, and runs 24/7 — no code required.";
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Deploy Openclaw in seconds.",
-    template: "%s | Open-clawbot.com",
+    default: "OpenClaw — Deploy Your Autonomous AI Agent on Telegram",
+    template: "%s | OpenClaw",
   },
-  description: "Deploy Openclaw in seconds.",
+  description: siteDescription,
   keywords: [
     "OpenClaw",
-    "Telegram bot",
-    "AI agent",
-    "deploy",
-    "Open-clawbot",
-    "chatbot",
-    "automation",
+    "telegram ai bot",
+    "autonomous ai agent",
+    "deploy ai agent",
+    "ai personal assistant",
+    "telegram chatbot",
+    "ai agent platform",
+    "no code ai bot",
+    "ai customer support bot",
+    "self-running ai agent",
   ],
-  authors: [{ name: "Open-clawbot" }],
-  creator: "Open-clawbot",
+  authors: [{ name: "OpenClaw" }],
+  creator: "OpenClaw",
   openGraph: {
     type: "website",
     locale: "en_US",
     url: siteUrl,
-    siteName: "Open-clawbot.com",
-    title: "Deploy Openclaw in seconds.",
-    description: "Deploy Openclaw in seconds.",
+    siteName: "OpenClaw",
+    title: "OpenClaw — Deploy Your Autonomous AI Agent on Telegram",
+    description: siteDescription,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Deploy Openclaw in seconds.",
-    description: "Deploy Openclaw in seconds.",
+    title: "OpenClaw — Deploy Your Autonomous AI Agent on Telegram",
+    description: siteDescription,
   },
   robots: {
     index: true,
     follow: true,
+  },
+  alternates: {
+    canonical: siteUrl,
   },
   icons: {
     icon: "/favicon.png",
@@ -74,6 +84,33 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} antialiased`}
       >
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            name: "OpenClaw",
+            url: siteUrl,
+            logo: `${siteUrl}/favicon.png`,
+            description: siteDescription,
+          }}
+        />
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "OpenClaw",
+            operatingSystem: "Telegram",
+            applicationCategory: "BusinessApplication",
+            description: siteDescription,
+            url: siteUrl,
+            offers: {
+              "@type": "Offer",
+              price: "29",
+              priceCurrency: "USD",
+              priceValidUntil: "2027-12-31",
+            },
+          }}
+        />
         <div className="min-h-screen bg-background text-foreground">
           <SiteHeader />
           <main>{children}</main>
