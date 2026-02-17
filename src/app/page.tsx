@@ -316,14 +316,42 @@ function HomeContent() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-12">
-      <div className="mb-6 text-center sm:mb-8">
+    <div className="relative mx-auto max-w-2xl px-4 py-10 sm:px-6 sm:py-12">
+      {/* Ambient breathing glow behind hero */}
+      <div className="hero-glow pointer-events-none absolute inset-x-0 -top-32 h-[420px] opacity-25" />
+
+      {/* Floating ambient particles */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        {[
+          { top: "10%", left: "15%", dx: "30px", dy: "-60px", duration: "7s", delay: "0s" },
+          { top: "25%", left: "80%", dx: "-40px", dy: "-70px", duration: "9s", delay: "2s" },
+          { top: "60%", left: "10%", dx: "50px", dy: "-90px", duration: "8s", delay: "1s" },
+          { top: "45%", left: "90%", dx: "-30px", dy: "-50px", duration: "10s", delay: "3s" },
+          { top: "70%", left: "50%", dx: "20px", dy: "-80px", duration: "7.5s", delay: "4s" },
+          { top: "15%", left: "60%", dx: "-25px", dy: "-65px", duration: "8.5s", delay: "1.5s" },
+        ].map((p, i) => (
+          <div
+            key={i}
+            className="particle"
+            style={{
+              top: p.top,
+              left: p.left,
+              "--dx": p.dx,
+              "--dy": p.dy,
+              "--duration": p.duration,
+              "--delay": p.delay,
+            } as React.CSSProperties}
+          />
+        ))}
+      </div>
+
+      <div className="relative mb-6 text-center sm:mb-8">
         <h1 className="text-3xl font-bold tracking-tight sm:whitespace-nowrap sm:text-5xl">
-          Deploy Openclaw in seconds.
+          Deploy Openclaw in seconds<span className="cursor-blink" />
         </h1>
       </div>
 
-      <div className="glass-card rounded-2xl p-4 sm:p-6">
+      <div className="glass-card glass-card-alive relative rounded-2xl p-4 sm:p-6">
         {user && !personalitySelected ? (
           <>
             <p className="mb-4 text-center text-base font-medium text-foreground sm:text-lg">
@@ -393,7 +421,7 @@ function HomeContent() {
             </div>
             <Button
               size="lg"
-              className="w-full gap-2 bg-[#FF5F1F] text-white hover:bg-[#FF5F1F]/90"
+              className="w-full gap-2 cta-shimmer text-white hover:brightness-110"
               onClick={signInGoogle}
               disabled={signingIn}
             >
@@ -606,7 +634,7 @@ function HomeContent() {
         <div className="mx-auto mt-16 max-w-3xl space-y-20">
           {/* What is OpenClaw */}
           <div ref={setFadeRef(0)} className="fade-section text-center">
-            <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl lobster-gradient text-white shadow-lg shadow-lobster/20">
+            <span className="float mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl lobster-gradient text-white shadow-lg shadow-lobster/20">
               {/* Claw / lobster icon */}
               <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M6 3c0 3-2 5-2 8a6 6 0 0 0 12 0c0-3-2-5-2-8" />
@@ -652,7 +680,7 @@ function HomeContent() {
                 style={{ transitionDelay: "0ms" }}
               >
                 <div className="flex items-start gap-4">
-                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#ff4500]/10 text-lobster">
+                  <span className="float inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#ff4500]/10 text-lobster" style={{ animationDelay: "0s" }}>
                     {/* Chat bubble with dots */}
                     <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -683,7 +711,7 @@ function HomeContent() {
                   }}
                   style={{ transitionDelay: "80ms" }}
                 >
-                  <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#3b82f6]/10 text-[#3b82f6]">
+                  <span className="float mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#3b82f6]/10 text-[#3b82f6]" style={{ animationDelay: "0.5s" }}>
                     {/* Globe with search magnifier */}
                     <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="11" cy="11" r="8" />
@@ -709,7 +737,7 @@ function HomeContent() {
                   }}
                   style={{ transitionDelay: "160ms" }}
                 >
-                  <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#a855f7]/10 text-[#a855f7]">
+                  <span className="float mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#a855f7]/10 text-[#a855f7]" style={{ animationDelay: "1s" }}>
                     {/* Pen with sparkle */}
                     <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 20h9" />
@@ -737,7 +765,7 @@ function HomeContent() {
                   }}
                   style={{ transitionDelay: "240ms" }}
                 >
-                  <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#10b981]/10 text-[#10b981]">
+                  <span className="float mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#10b981]/10 text-[#10b981]" style={{ animationDelay: "1.5s" }}>
                     {/* Brain with connection nodes */}
                     <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 2a5 5 0 0 1 5 5c0 1.5-.7 3-2 4v2h-6v-2c-1.3-1-2-2.5-2-4a5 5 0 0 1 5-5z" />
@@ -766,7 +794,7 @@ function HomeContent() {
                   }}
                   style={{ transitionDelay: "320ms" }}
                 >
-                  <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#f59e0b]/10 text-[#f59e0b]">
+                  <span className="float mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-[#f59e0b]/10 text-[#f59e0b]" style={{ animationDelay: "2s" }}>
                     {/* Gear with lightning bolt */}
                     <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="3" />
@@ -794,7 +822,7 @@ function HomeContent() {
                 style={{ transitionDelay: "400ms" }}
               >
                 <div className="flex items-start gap-4">
-                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#06b6d4]/10 text-[#06b6d4]">
+                  <span className="float inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#06b6d4]/10 text-[#06b6d4]" style={{ animationDelay: "2.5s" }}>
                     {/* Pulse / always-on signal */}
                     <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
@@ -805,7 +833,10 @@ function HomeContent() {
                     </svg>
                   </span>
                   <div>
-                    <h3 className="text-base font-semibold text-foreground">Always On, 24/7</h3>
+                    <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                      Always On, 24/7
+                      <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                    </h3>
                     <p className="mt-1 text-sm leading-relaxed text-muted">
                       Your agent never sleeps. It responds instantly, any time of day or
                       night, and picks up exactly where you left off.

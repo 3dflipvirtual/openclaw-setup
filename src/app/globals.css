@@ -107,3 +107,88 @@ h6 {
 .use-case-card:hover::before {
   opacity: 1;
 }
+
+/* Breathing hero glow — slow ambient pulse */
+@keyframes breathe {
+  0%, 100% { opacity: 0.25; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(1.05); }
+}
+.hero-glow {
+  animation: breathe 6s ease-in-out infinite;
+}
+
+/* Floating icon animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Subtle pulse for "always on" indicators */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Slow color-shift gradient for CTA buttons */
+@keyframes shimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.cta-shimmer {
+  background: linear-gradient(135deg, #ff4500, #ff7a3d, #ff4500);
+  background-size: 200% 200%;
+  animation: shimmer 4s ease-in-out infinite;
+}
+
+/* Ambient floating particles */
+@keyframes drift {
+  0% { transform: translate(0, 0) scale(1); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  100% { transform: translate(var(--dx, 40px), var(--dy, -80px)) scale(0.5); opacity: 0; }
+}
+.particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--lobster);
+  opacity: 0;
+  pointer-events: none;
+  animation: drift var(--duration, 8s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+/* Gentle border glow pulse on glass cards */
+@keyframes border-glow {
+  0%, 100% { border-color: var(--border); }
+  50% { border-color: rgba(255, 69, 0, 0.15); }
+}
+.glass-card-alive {
+  animation: border-glow 5s ease-in-out infinite;
+}
+
+/* Slide-in from left for section headings */
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Typing cursor blink for taglines */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.cursor-blink::after {
+  content: "|";
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+  color: var(--lobster);
+}

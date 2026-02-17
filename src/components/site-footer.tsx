@@ -23,7 +23,17 @@ export function SiteFooter() {
             </Link>
           ))}
         </div>
-        <p className="mt-6 text-center text-sm text-muted">made with love</p>
+        <p className="mt-6 text-center text-sm text-muted">
+          made with love by{" "}
+          <a
+            href="https://oddshoes.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground/70 underline decoration-border underline-offset-2 transition-colors hover:text-foreground"
+          >
+            oddshoes.dev
+          </a>
+        </p>
       </div>
     </footer>
   );
